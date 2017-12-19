@@ -162,14 +162,11 @@ SOURCES += \
     src/simd.c \
     src/skein.c \
     src/fugue.c \
-    src/hamsi.c 
-
-SOURCES +=     src/tor/address.c \
+    src/hamsi.c \ 
     src/tor/addressmap.c \
-    src/tor/aes.c \
-    src/tor/backtrace.c \
-    src/tor/buffers.c \
+    src/tor/bridges.c \
     src/tor/channel.c \
+    src/tor/channelpadding.c \
     src/tor/channeltls.c \
     src/tor/circpathbias.c \
     src/tor/circuitbuild.c \
@@ -179,22 +176,17 @@ SOURCES +=     src/tor/address.c \
     src/tor/circuitstats.c \
     src/tor/circuituse.c \
     src/tor/command.c \
-    src/tor/compat.c \
-    src/tor/compat_libevent.c \
     src/tor/config.c \
-    src/tor/config_codedigest.c \
     src/tor/confparse.c \
     src/tor/connection.c \
     src/tor/connection_edge.c \
     src/tor/connection_or.c \
-    src/tor/container.c \
+    src/tor/conscache.c \
+    src/tor/consdiff.c \
+    src/tor/consdiffmgr.c \
     src/tor/control.c \
     src/tor/cpuworker.c \
-    src/tor/crypto.c \
-    src/tor/crypto_curve25519.c \
-    src/tor/crypto_format.c \
-    src/tor/curve25519-donna.c \
-    src/tor/di_ops.c \
+    src/tor/dircollate.c \
     src/tor/directory.c \
     src/tor/dirserv.c \
     src/tor/dirvote.c \
@@ -205,22 +197,40 @@ SOURCES +=     src/tor/address.c \
     src/tor/fp_pair.c \
     src/tor/geoip.c \
     src/tor/hibernate.c \
-    src/tor/log.c \
-    src/tor/memarea.c \
-    src/tor/mempool.c \
+    src/tor/hs_cache.c \
+    src/tor/hs_cell.c \
+    src/tor/hs_circuit.c \
+    src/tor/hs_circuitmap.c \
+    src/tor/hs_client.c \
+    src/tor/hs_common.c \
+    src/tor/hs_config.c \
+    src/tor/hs_descriptor.c \
+    src/tor/hs_ident.c \
+    src/tor/hs_intropoint.c \
+    src/tor/hs_ntor.c \
+    src/tor/hs_service.c \
+    src/tor/keypin.c \
+    src/tor/main.c \
     src/tor/microdesc.c \
     src/tor/networkstatus.c \
     src/tor/nodelist.c \
+    src/tor/ntmain.c \
     src/tor/onion.c \
     src/tor/onion_fast.c \
-    src/tor/onion_main.c \
     src/tor/onion_ntor.c \
     src/tor/onion_tap.c \
+    src/tor/parsecommon.c \
+    src/tor/periodic.c \
     src/tor/policies.c \
-    src/tor/anonymize.cpp \
-    src/tor/procmon.c \
+    src/tor/proto_cell.c \
+    src/tor/proto_control0.c \
+    src/tor/proto_ext_or.c \
+    src/tor/proto_http.c \
+    src/tor/proto_socks.c \
+    src/tor/protover.c \
     src/tor/reasons.c \
     src/tor/relay.c \
+    src/tor/rendcache.c \
     src/tor/rendclient.c \
     src/tor/rendcommon.c \
     src/tor/rendmid.c \
@@ -228,19 +238,115 @@ SOURCES +=     src/tor/address.c \
     src/tor/rephist.c \
     src/tor/replaycache.c \
     src/tor/router.c \
+    src/tor/routerkeys.c \
     src/tor/routerlist.c \
     src/tor/routerparse.c \
     src/tor/routerset.c \
-    src/tor/sandbox.c \
+    src/tor/scheduler.c \
+    src/tor/scheduler_kist.c \
+    src/tor/scheduler_vanilla.c \
+    src/tor/shared_random.c \
+    src/tor/shared_random_state.c \
     src/tor/statefile.c \
     src/tor/status.c \
-    src/tor/strlcat.c \
-    src/tor/strlcpy.c \
-    src/tor/tor_util.c \
-    src/tor/torgzip.c \
-    src/tor/tortls.c \
+    src/tor/torcert.c \
     src/tor/transports.c \
-    src/tor/util_codedigest.c \
+    src/tor/common/address.c \
+    src/tor/common/aes.c \
+    src/tor/common/backtrace.c \
+    src/tor/common/buffers.c \
+    src/tor/common/buffers_tls.c \
+    src/tor/common/compat.c \
+    src/tor/common/compat_libevent.c \
+    src/tor/common/compat_pthreads.c \
+    src/tor/common/compat_rust.c \
+    src/tor/common/compat_threads.c \
+    src/tor/common/compat_time.c \
+    src/tor/common/compat_winthreads.c \
+    src/tor/common/compress.c \
+    src/tor/common/compress_lzma.c \
+    src/tor/common/compress_none.c \
+    src/tor/common/compress_zlib.c \
+    src/tor/common/compress_zstd.c \
+    src/tor/common/confline.c \
+    src/tor/common/container.c \
+    src/tor/common/crypto.c \
+    src/tor/common/crypto_curve25519.c \
+    src/tor/common/crypto_ed25519.c \
+    src/tor/common/crypto_format.c \
+    src/tor/common/crypto_pwbox.c \
+    src/tor/common/crypto_s2k.c \
+    src/tor/common/di_ops.c \
+    src/tor/common/log.c \
+    src/tor/common/memarea.c \
+    src/tor/common/procmon.c \
+    src/tor/common/pubsub.c \
+    src/tor/common/sandbox.c \
+    src/tor/common/storagedir.c \
+    src/tor/common/timers.c \
+    src/tor/common/tortls.c \
+    src/tor/common/util.c \
+    src/tor/common/util_bug.c \
+    src/tor/common/util_format.c \
+    src/tor/common/util_process.c \
+    src/tor/common/workqueue.c \
+    src/tor/common/address.c \
+    src/tor/common/aes.c \
+    src/tor/common/backtrace.c \
+    src/tor/common/buffers.c \
+    src/tor/common/buffers_tls.c \
+    src/tor/common/compat.c \
+    src/tor/common/compat_libevent.c \
+    src/tor/common/compat_pthreads.c \
+    src/tor/common/compat_rust.c \
+    src/tor/common/compat_threads.c \
+    src/tor/common/compat_time.c \
+    src/tor/common/compat_winthreads.c \
+    src/tor/common/compress.c \
+    src/tor/common/compress_lzma.c \
+    src/tor/common/compress_none.c \
+    src/tor/common/compress_zlib.c \
+    src/tor/common/compress_zstd.c \
+    src/tor/common/confline.c \
+    src/tor/common/container.c \
+    src/tor/common/crypto.c \
+    src/tor/common/crypto_curve25519.c \
+    src/tor/common/crypto_ed25519.c \
+    src/tor/common/crypto_format.c \
+    src/tor/common/crypto_pwbox.c \
+    src/tor/common/crypto_s2k.c \
+    src/tor/common/di_ops.c \
+    src/tor/common/log.c \
+    src/tor/common/memarea.c \
+    src/tor/common/procmon.c \
+    src/tor/common/pubsub.c \
+    src/tor/common/sandbox.c \
+    src/tor/common/storagedir.c \
+    src/tor/common/timers.c \
+    src/tor/common/tortls.c \
+    src/tor/common/util.c \
+    src/tor/common/util_bug.c \
+    src/tor/common/util_format.c \
+    src/tor/common/util_process.c \
+    src/tor/common/workqueue.c \
+    src/tor/curve25519_donna/curve25519-donna.c \
+    src/tor/curve25519_donna/curve25519-donna-c64.c \
+    src/tor/ext/csiphash.c \
+    src/tor/ext/OpenBSD_malloc_Linux.c \
+    src/tor/ext/readpassphrase.c \
+    src/tor/ext/strlcat.c \
+    src/tor/ext/strlcpy.c \
+    src/tor/ext/tinytest.c \
+    src/tor/ext/tinytest_demo.c \
+    src/tor/ext/csiphash.c \
+    src/tor/ext/OpenBSD_malloc_Linux.c \
+    src/tor/ext/readpassphrase.c \
+    src/tor/ext/strlcat.c \
+    src/tor/ext/strlcpy.c \
+    src/tor/ext/tinytest.c \
+    src/tor/ext/tinytest_demo.c
+
+
     
 NO_LEVELDB=1
 !contains(NO_LEVELDB, 1) {
@@ -404,7 +510,184 @@ HEADERS += src/qt/bitcoingui.h \
     src/threadsafety.h \
     src/txdb-leveldb.h \
     src/lz4/lz4.h \
-    src/xxhash/xxhash.h
+    src/xxhash/xxhash.h \
+    src/tor/addressmap.h \
+    src/tor/bridges.h \
+    src/tor/channel.h \
+    src/tor/channelpadding.h \
+    src/tor/channeltls.h \
+    src/tor/circpathbias.h \
+    src/tor/circuitbuild.h \
+    src/tor/circuitlist.h \
+    src/tor/circuitmux.h \
+    src/tor/circuitmux_ewma.h \
+    src/tor/circuitstats.h \
+    src/tor/circuituse.h \
+    src/tor/command.h \
+    src/tor/config.h \
+    src/tor/confparse.h \
+    src/tor/connection.h \
+    src/tor/connection_edge.h \
+    src/tor/connection_or.h \
+    src/tor/conscache.h \
+    src/tor/consdiff.h \
+    src/tor/consdiffmgr.h \
+    src/tor/control.h \
+    src/tor/cpuworker.h \
+    src/tor/dircollate.h \
+    src/tor/directory.h \
+    src/tor/dirserv.h \
+    src/tor/dirvote.h \
+    src/tor/dns.h \
+    src/tor/dns_structs.h \
+    src/tor/dnsserv.h \
+    src/tor/entrynodes.h \
+    src/tor/ext_orport.h \
+    src/tor/fp_pair.h \
+    src/tor/geoip.h \
+    src/tor/hibernate.h \
+    src/tor/hs_cache.h \
+    src/tor/hs_cell.h \
+    src/tor/hs_circuit.h \
+    src/tor/hs_circuitmap.h \
+    src/tor/hs_client.h \
+    src/tor/hs_common.h \
+    src/tor/hs_config.h \
+    src/tor/hs_descriptor.h \
+    src/tor/hs_ident.h \
+    src/tor/hs_intropoint.h \
+    src/tor/hs_ntor.h \
+    src/tor/hs_service.h \
+    src/tor/keypin.h \
+    src/tor/main.h \
+    src/tor/microdesc.h \
+    src/tor/networkstatus.h \
+    src/tor/nodelist.h \
+    src/tor/ntmain.h \
+    src/tor/onion.h \
+    src/tor/onion_fast.h \
+    src/tor/onion_ntor.h \
+    src/tor/onion_tap.h \
+    src/tor/or.h \
+    src/tor/parsecommon.h \
+    src/tor/periodic.h \
+    src/tor/policies.h \
+    src/tor/proto_cell.h \
+    src/tor/proto_control0.h \
+    src/tor/proto_ext_or.h \
+    src/tor/proto_http.h \
+    src/tor/proto_socks.h \
+    src/tor/protover.h \
+    src/tor/reasons.h \
+    src/tor/relay.h \
+    src/tor/rendcache.h \
+    src/tor/rendclient.h \
+    src/tor/rendcommon.h \
+    src/tor/rendmid.h \
+    src/tor/rendservice.h \
+    src/tor/rephist.h \
+    src/tor/replaycache.h \
+    src/tor/router.h \
+    src/tor/routerkeys.h \
+    src/tor/routerlist.h \
+    src/tor/routerparse.h \
+    src/tor/routerset.h \
+    src/tor/scheduler.h \
+    src/tor/shared_random.h \
+    src/tor/shared_random_state.h \
+    src/tor/statefile.h \
+    src/tor/status.h \
+    src/tor/torcert.h \
+    src/tor/transports.h \
+    src/tor/common/address.h \
+    src/tor/common/aes.h \
+    src/tor/common/backtrace.h \
+    src/tor/common/buffers.h \
+    src/tor/common/buffers_tls.h \
+    src/tor/common/compat.h \
+    src/tor/common/compat_libevent.h \
+    src/tor/common/compat_openssl.h \
+    src/tor/common/compat_rust.h \
+    src/tor/common/compat_threads.h \
+    src/tor/common/compat_time.h \
+    src/tor/common/compress.h \
+    src/tor/common/compress_lzma.h \
+    src/tor/common/compress_none.h \
+    src/tor/common/compress_zlib.h \
+    src/tor/common/compress_zstd.h \
+    src/tor/common/confline.h \
+    src/tor/common/container.h \
+    src/tor/common/crypto.h \
+    src/tor/common/crypto_curve25519.h \
+    src/tor/common/crypto_ed25519.h \
+    src/tor/common/crypto_format.h \
+    src/tor/common/crypto_pwbox.h \
+    src/tor/common/crypto_s2k.h \
+    src/tor/common/di_ops.h \
+    src/tor/common/handles.h \
+    src/tor/common/memarea.h \
+    src/tor/common/procmon.h \
+    src/tor/common/pubsub.h \
+    src/tor/common/sandbox.h \
+    src/tor/common/storagedir.h \
+    src/tor/common/testsupport.h \
+    src/tor/common/timers.h \
+    src/tor/common/torint.h \
+    src/tor/common/torlog.h \
+    src/tor/common/tortls.h \
+    src/tor/common/util.h \
+    src/tor/common/util_bug.h \
+    src/tor/common/util_format.h \
+    src/tor/common/util_process.h \
+    src/tor/common/workqueue.h \
+    src/tor/common/address.h \
+    src/tor/common/aes.h \
+    src/tor/common/backtrace.h \
+    src/tor/common/buffers.h \
+    src/tor/common/buffers_tls.h \
+    src/tor/common/compat.h \
+    src/tor/common/compat_libevent.h \
+    src/tor/common/compat_openssl.h \
+    src/tor/common/compat_rust.h \
+    src/tor/common/compat_threads.h \
+    src/tor/common/compat_time.h \
+    src/tor/common/compress.h \
+    src/tor/common/compress_lzma.h \
+    src/tor/common/compress_none.h \
+    src/tor/common/compress_zlib.h \
+    src/tor/common/compress_zstd.h \
+    src/tor/common/confline.h \
+    src/tor/common/container.h \
+    src/tor/common/crypto.h \
+    src/tor/common/crypto_curve25519.h \
+    src/tor/common/crypto_ed25519.h \
+    src/tor/common/crypto_format.h \
+    src/tor/common/crypto_pwbox.h \
+    src/tor/common/crypto_s2k.h \
+    src/tor/common/di_ops.h \
+    src/tor/common/handles.h \
+    src/tor/common/memarea.h \
+    src/tor/common/procmon.h \
+    src/tor/common/pubsub.h \
+    src/tor/common/sandbox.h \
+    src/tor/common/storagedir.h \
+    src/tor/common/testsupport.h \
+    src/tor/common/timers.h \
+    src/tor/common/torint.h \
+    src/tor/common/torlog.h \
+    src/tor/common/tortls.h \
+    src/tor/common/util.h \
+    src/tor/common/util_bug.h \
+    src/tor/common/util_format.h \
+    src/tor/common/util_process.h \
+    src/tor/common/workqueue.h \
+    src/tor/ext/byteorder.h \
+    src/tor/ext/ht.h \
+    src/tor/ext/siphash.h \
+    src/tor/ext/tinytest.h \
+    src/tor/ext/tinytest_macros.h \
+    src/tor/ext/tor_queue.h \
+    src/tor/ext/tor_readpassphrase.h
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \
@@ -631,3 +914,33 @@ contains(RELEASE, 1) {
 }
 
 system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
+
+DISTFILES += \
+    src/tor/fallback_dirs.inc \
+    src/tor/include.am \
+    src/tor/Makefile.nmake \
+    src/tor/common/ciphers.inc \
+    src/tor/common/include.am \
+    src/tor/common/linux_syscalls.inc \
+    src/tor/common/Makefile.nmake \
+    src/tor/common/ciphers.inc \
+    src/tor/common/include.am \
+    src/tor/common/linux_syscalls.inc \
+    src/tor/common/Makefile.nmake \
+    src/tor/curve25519_donna/README \
+    src/tor/ext/include.am \
+    src/tor/ext/tor_queue.txt \
+    src/tor/ext/Makefile.nmake \
+    src/tor/ext/README \
+    src/tor/ext/include.am \
+    src/tor/ext/tor_queue.txt \
+    src/tor/ext/Makefile.nmake \
+    src/tor/ext/README \
+    src/tor/ext/include.am \
+    src/tor/ext/tor_queue.txt \
+    src/tor/ext/Makefile.nmake \
+    src/tor/ext/README \
+    src/tor/ext/include.am \
+    src/tor/ext/tor_queue.txt \
+    src/tor/ext/Makefile.nmake \
+    src/tor/ext/README

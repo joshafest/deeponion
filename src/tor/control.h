@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -11,6 +11,8 @@
 
 #ifndef TOR_CONTROL_H
 #define TOR_CONTROL_H
+
+void control_initialize_event_queue(void);
 
 void control_update_global_event_mask(void);
 void control_adjust_event_log_severity(void);
@@ -31,7 +33,6 @@ void connection_control_closed(control_connection_t *conn);
 
 int connection_control_process_inbuf(control_connection_t *conn);
 
-#define EVENT_AUTHDIR_NEWDESCS 0x000D
 #define EVENT_NS 0x000F
 int control_event_is_interesting(int event);
 
@@ -62,11 +63,8 @@ int control_event_descriptors_changed(smartlist_t *routers);
 int control_event_address_mapped(const char *from, const char *to,
                                  time_t expires, const char *error,
                                  const int cached);
-int control_event_or_authdir_new_descriptor(const char *action,
-                                            const char *desc,
-                                            size_t desclen,
-                                            const char *msg);
 int control_event_my_descriptor_changed(void);
+int control_event_network_liveness_update(int liveness);
 int control_event_networkstatus_changed(smartlist_t *statuses);
 
 int control_event_newconsensus(const networkstatus_t *consensus);
@@ -77,6 +75,14 @@ int control_event_client_status(int severity, const char *format, ...)
   CHECK_PRINTF(2,3);
 int control_event_server_status(int severity, const char *format, ...)
   CHECK_PRINTF(2,3);
+
+int control_event_general_error(const char *format, ...)
+  CHECK_PRINTF(1,2);
+int control_event_client_error(const char *format, ...)
+  CHECK_PRINTF(1,2);
+int control_event_server_error(const char *format, ...)
+  CHECK_PRINTF(1,2);
+
 int control_event_guard(const char *nickname, const char *digest,
                         const char *status);
 int control_event_conf_changed(const smartlist_t *elements);
@@ -85,15 +91,19 @@ int control_event_buildtimeout_set(buildtimeout_set_event_t type,
 int control_event_signal(uintptr_t signal);
 
 int init_control_cookie_authentication(int enabled);
+char *get_controller_cookie_file_name(void);
 smartlist_t *decode_hashed_passwords(config_line_t *passwords);
 void disable_control_logging(void);
 void enable_control_logging(void);
 
 void monitor_owning_controller_process(const char *process_spec);
 
-void control_event_bootstrap(bootstrap_status_t status, int progress);
-MOCK_DECL(void, control_event_bootstrap_problem,(const char *warn,
-                                                 int reason));
+int control_event_bootstrap(bootstrap_status_t status, int progress);
+MOCK_DECL(void, control_event_bootstrap_prob_or,(const char *warn,
+                                                 int reason,
+                                                 or_connection_t *or_conn));
+void control_event_bootstrap_problem(const char *warn, const char *reason,
+                                     const connection_t *conn, int dowarn);
 
 void control_event_clients_seen(const char *controller_str);
 void control_event_transport_launched(const char *mode,
@@ -104,13 +114,36 @@ MOCK_DECL(const char *, node_describe_longname_by_id,(const char *id_digest));
 void control_event_hs_descriptor_requested(const rend_data_t *rend_query,
                                            const char *desc_id_base32,
                                            const char *hs_dir);
+void control_event_hs_descriptor_created(const char *service_id,
+                                         const char *desc_id_base32,
+                                         int replica);
+void control_event_hs_descriptor_upload(const char *service_id,
+                                        const char *desc_id_base32,
+                                        const char *hs_dir);
 void control_event_hs_descriptor_receive_end(const char *action,
-                                        const rend_data_t *rend_query,
-                                        const char *hs_dir);
-void control_event_hs_descriptor_received(const rend_data_t *rend_query,
-                                          const char *hs_dir);
-void control_event_hs_descriptor_failed(const rend_data_t *rend_query,
-                                        const char *hs_dir);
+                                             const char *onion_address,
+                                             const rend_data_t *rend_data,
+                                             const char *id_digest,
+                                             const char *reason);
+void control_event_hs_descriptor_upload_end(const char *action,
+                                            const char *onion_address,
+                                            const char *hs_dir,
+                                            const char *reason);
+void control_event_hs_descriptor_received(const char *onion_address,
+                                          const rend_data_t *rend_data,
+                                          const char *id_digest);
+void control_event_hs_descriptor_uploaded(const char *hs_dir,
+                                          const char *onion_address);
+void control_event_hs_descriptor_failed(const rend_data_t *rend_data,
+                                        const char *id_digest,
+                                        const char *reason);
+void control_event_hs_descriptor_upload_failed(const char *hs_dir,
+                                               const char *onion_address,
+                                               const char *reason);
+void control_event_hs_descriptor_content(const char *onion_address,
+                                         const char *desc_id,
+                                         const char *hsdir_fp,
+                                         const char *content);
 
 void control_free_all(void);
 
@@ -119,6 +152,7 @@ void control_free_all(void);
  * because it is used both as a list of v0 event types, and as indices
  * into the bitfield to determine which controllers want which events.
  */
+/* This bitfield has no event zero    0x0000 */
 #define EVENT_MIN_                    0x0001
 #define EVENT_CIRCUIT_STATUS          0x0001
 #define EVENT_STREAM_STATUS           0x0002
@@ -132,8 +166,8 @@ void control_free_all(void);
 #define EVENT_WARN_MSG                0x000A
 #define EVENT_ERR_MSG                 0x000B
 #define EVENT_ADDRMAP                 0x000C
-/* Exposed above */
-// #define EVENT_AUTHDIR_NEWDESCS     0x000D
+/* There was an AUTHDIR_NEWDESCS event, but it no longer exists.  We
+   can reclaim 0x000D. */
 #define EVENT_DESCCHANGED             0x000E
 /* Exposed above */
 // #define EVENT_NS                   0x000F
@@ -145,7 +179,7 @@ void control_free_all(void);
 #define EVENT_CLIENTS_SEEN            0x0015
 #define EVENT_NEWCONSENSUS            0x0016
 #define EVENT_BUILDTIMEOUT_SET        0x0017
-#define EVENT_SIGNAL                  0x0018
+#define EVENT_GOT_SIGNAL              0x0018
 #define EVENT_CONF_CHANGED            0x0019
 #define EVENT_CONN_BW                 0x001A
 #define EVENT_CELL_STATS              0x001B
@@ -153,28 +187,45 @@ void control_free_all(void);
 #define EVENT_CIRC_BANDWIDTH_USED     0x001D
 #define EVENT_TRANSPORT_LAUNCHED      0x0020
 #define EVENT_HS_DESC                 0x0021
-#define EVENT_MAX_                    0x0021
+#define EVENT_HS_DESC_CONTENT         0x0022
+#define EVENT_NETWORK_LIVENESS        0x0023
+#define EVENT_MAX_                    0x0023
+
+/* sizeof(control_connection_t.event_mask) in bits, currently a uint64_t */
+#define EVENT_CAPACITY_               0x0040
+
 /* If EVENT_MAX_ ever hits 0x0040, we need to make the mask into a
- * different structure. */
+ * different structure, as it can only handle a maximum left shift of 1<<63. */
+
+#if EVENT_MAX_ >= EVENT_CAPACITY_
+#error control_connection_t.event_mask has an event greater than its capacity
+#endif
+
+#define EVENT_MASK_(e)               (((uint64_t)1)<<(e))
+
+#define EVENT_MASK_NONE_             ((uint64_t)0x0)
+
+#define EVENT_MASK_ABOVE_MIN_        ((~((uint64_t)0x0)) << EVENT_MIN_)
+#define EVENT_MASK_BELOW_MAX_        ((~((uint64_t)0x0)) \
+                                      >> (EVENT_CAPACITY_ - EVENT_MAX_ \
+                                          - EVENT_MIN_))
+
+#define EVENT_MASK_ALL_              (EVENT_MASK_ABOVE_MIN_ \
+                                      & EVENT_MASK_BELOW_MAX_)
 
 /* Used only by control.c and test.c */
 STATIC size_t write_escaped_data(const char *data, size_t len, char **out);
 STATIC size_t read_escaped_data(const char *data, size_t len, char **out);
-/** Flag for event_format_t.  Indicates that we should use the one standard
-    format.  (Other formats previous existed, and are now deprecated)
- */
-#define ALL_FORMATS 1
-/** Bit field of flags to select how to format a controller event.  Recognized
- * flag is ALL_FORMATS. */
-typedef int event_format_t;
 
 #ifdef TOR_UNIT_TESTS
 MOCK_DECL(STATIC void,
-send_control_event_string,(uint16_t event, event_format_t which,
-                           const char *msg));
+          send_control_event_string,(uint16_t event, const char *msg));
+
+MOCK_DECL(STATIC void,
+          queue_control_event_string,(uint16_t event, char *msg));
 
 void control_testing_set_global_event_mask(uint64_t mask);
-#endif
+#endif /* defined(TOR_UNIT_TESTS) */
 
 /** Helper structure: temporarily stores cell statistics for a circuit. */
 typedef struct cell_stats_t {
@@ -199,7 +250,49 @@ void append_cell_stats_by_command(smartlist_t *event_parts,
                                   const uint64_t *number_to_include);
 void format_cell_stats(char **event_string, circuit_t *circ,
                        cell_stats_t *cell_stats);
-#endif
+STATIC char *get_bw_samples(void);
 
-#endif
+STATIC crypto_pk_t *add_onion_helper_keyarg(const char *arg, int discard_pk,
+                                            const char **key_new_alg_out,
+                                            char **key_new_blob_out,
+                                            char **err_msg_out);
+STATIC rend_authorized_client_t *
+add_onion_helper_clientauth(const char *arg, int *created, char **err_msg_out);
+
+STATIC int getinfo_helper_onions(
+    control_connection_t *control_conn,
+    const char *question,
+    char **answer,
+    const char **errmsg);
+STATIC void getinfo_helper_downloads_networkstatus(
+    const char *flavor,
+    download_status_t **dl_to_emit,
+    const char **errmsg);
+STATIC void getinfo_helper_downloads_cert(
+    const char *fp_sk_req,
+    download_status_t **dl_to_emit,
+    smartlist_t **digest_list,
+    const char **errmsg);
+STATIC void getinfo_helper_downloads_desc(
+    const char *desc_req,
+    download_status_t **dl_to_emit,
+    smartlist_t **digest_list,
+    const char **errmsg);
+STATIC void getinfo_helper_downloads_bridge(
+    const char *bridge_req,
+    download_status_t **dl_to_emit,
+    smartlist_t **digest_list,
+    const char **errmsg);
+STATIC int getinfo_helper_downloads(
+    control_connection_t *control_conn,
+    const char *question, char **answer,
+    const char **errmsg);
+STATIC int getinfo_helper_dir(
+    control_connection_t *control_conn,
+    const char *question, char **answer,
+    const char **errmsg);
+
+#endif /* defined(CONTROL_PRIVATE) */
+
+#endif /* !defined(TOR_CONTROL_H) */
 

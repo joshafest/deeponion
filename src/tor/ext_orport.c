@@ -1,10 +1,20 @@
-/* Copyright (c) 2012, The Tor Project, Inc. */
+/* Copyright (c) 2012-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file ext_orport.c
  * \brief Code implementing the Extended ORPort.
-*/
+ *
+ * The Extended ORPort interface is used by pluggable transports to
+ * communicate additional information to a Tor bridge, including
+ * address information. For more information on this interface,
+ * see pt-spec.txt in torspec.git.
+ *
+ * There is no separate structure for extended ORPort connections; they use
+ * or_connection_t objects, and share most of their implementation with
+ * connection_or.c.  Once the handshake is done, an extended ORPort connection
+ * turns into a regular OR connection, using connection_ext_or_transition().
+ */
 
 #define EXT_ORPORT_PRIVATE
 #include "or.h"
@@ -13,15 +23,16 @@
 #include "ext_orport.h"
 #include "control.h"
 #include "config.h"
-#include "tor_util.h"
-#include "onion_main.h"
+#include "main.h"
+#include "proto_ext_or.h"
+#include "util.h"
 
 /** Allocate and return a structure capable of holding an Extended
  *  ORPort message of body length <b>len</b>. */
 ext_or_cmd_t *
 ext_or_cmd_new(uint16_t len)
 {
-  size_t size = STRUCT_OFFSET(ext_or_cmd_t, body) + len;
+  size_t size = offsetof(ext_or_cmd_t, body) + len;
   ext_or_cmd_t *cmd = tor_malloc(size);
   cmd->len = len;
   return cmd;
@@ -41,12 +52,7 @@ ext_or_cmd_free(ext_or_cmd_t *cmd)
 static int
 connection_fetch_ext_or_cmd_from_buf(connection_t *conn, ext_or_cmd_t **out)
 {
-  IF_HAS_BUFFEREVENT(conn, {
-    struct evbuffer *input = bufferevent_get_input(conn->bufev);
-    return fetch_ext_or_command_from_evbuffer(input, out);
-  }) ELSE_IF_NO_BUFFEREVENT {
-    return fetch_ext_or_command_from_buf(conn->inbuf, out);
-  }
+  return fetch_ext_or_command_from_buf(conn->inbuf, out);
 }
 
 /** Write an Extended ORPort message to <b>conn</b>. Use
@@ -64,10 +70,10 @@ connection_write_ext_or_command(connection_t *conn,
     return -1;
   set_uint16(header, htons(command));
   set_uint16(header+2, htons(bodylen));
-  connection_write_to_buf(header, 4, conn);
+  connection_buf_add(header, 4, conn);
   if (bodylen) {
     tor_assert(body);
-    connection_write_to_buf(body, bodylen, conn);
+    connection_buf_add(body, bodylen, conn);
   }
   return 0;
 }
@@ -143,6 +149,7 @@ init_ext_or_cookie_authentication(int is_enabled)
   fname = get_ext_or_auth_cookie_file_name();
   retval = init_cookie_authentication(fname, EXT_OR_PORT_AUTH_COOKIE_HEADER,
                                       EXT_OR_PORT_AUTH_COOKIE_HEADER_LEN,
+                           get_options()->ExtORPortCookieAuthFileGroupReadable,
                                       &ext_or_auth_cookie,
                                       &ext_or_auth_cookie_is_set);
   tor_free(fname);
@@ -150,7 +157,7 @@ init_ext_or_cookie_authentication(int is_enabled)
 }
 
 /** Read data from <b>conn</b> and see if the client sent us the
- *  authentication type that she prefers to use in this session.
+ *  authentication type that they prefer to use in this session.
  *
  *  Return -1 if we received corrupted data or if we don't support the
  *  authentication type. Return 0 if we need more data in
@@ -164,7 +171,7 @@ connection_ext_or_auth_neg_auth_type(connection_t *conn)
   if (connection_get_inbuf_len(conn) < 1)
     return 0;
 
-  if (connection_fetch_from_buf(authtype, 1, conn) < 0)
+  if (connection_buf_get_bytes(authtype, 1, conn) < 0)
     return -1;
 
   log_debug(LD_GENERAL, "Client wants us to use %d auth type", authtype[0]);
@@ -177,7 +184,7 @@ connection_ext_or_auth_neg_auth_type(connection_t *conn)
   return 1;
 }
 
-/** DOCDOC */
+/* DOCDOC */
 STATIC int
 handle_client_auth_nonce(const char *client_nonce, size_t client_nonce_len,
                          char **client_hash_out,
@@ -192,8 +199,7 @@ handle_client_auth_nonce(const char *client_nonce, size_t client_nonce_len,
     return -1;
 
   /* Get our nonce */
-  if (crypto_rand(server_nonce, EXT_OR_PORT_AUTH_NONCE_LEN) < 0)
-    return -1;
+  crypto_rand(server_nonce, EXT_OR_PORT_AUTH_NONCE_LEN);
 
   { /* set up macs */
     size_t hmac_s_msg_len = strlen(EXT_OR_PORT_AUTH_SERVER_TO_CLIENT_CONST) +
@@ -256,7 +262,7 @@ handle_client_auth_nonce(const char *client_nonce, size_t client_nonce_len,
     base16_encode(server_nonce_encoded, sizeof(server_nonce_encoded),
                   server_nonce, sizeof(server_nonce));
     base16_encode(client_nonce_encoded, sizeof(client_nonce_encoded),
-                  client_nonce, sizeof(client_nonce));
+                  client_nonce, EXT_OR_PORT_AUTH_NONCE_LEN);
 
     log_debug(LD_GENERAL,
               "server_hash: '%s'\nserver_nonce: '%s'\nclient_nonce: '%s'",
@@ -305,7 +311,7 @@ connection_ext_or_auth_handle_client_nonce(connection_t *conn)
   if (connection_get_inbuf_len(conn) < EXT_OR_PORT_AUTH_NONCE_LEN)
     return 0;
 
-  if (connection_fetch_from_buf(client_nonce,
+  if (connection_buf_get_bytes(client_nonce,
                                 EXT_OR_PORT_AUTH_NONCE_LEN, conn) < 0)
     return -1;
 
@@ -320,7 +326,7 @@ connection_ext_or_auth_handle_client_nonce(connection_t *conn)
                             &reply, &reply_len) < 0)
     return -1;
 
-  connection_write_to_buf(reply, reply_len, conn);
+  connection_buf_add(reply, reply_len, conn);
 
   memwipe(reply, 0, reply_len);
   tor_free(reply);
@@ -342,9 +348,9 @@ static void
 connection_ext_or_auth_send_result(connection_t *conn, int success)
 {
   if (success)
-    connection_write_to_buf("\x01", 1, conn);
+    connection_buf_add("\x01", 1, conn);
   else
-    connection_write_to_buf("\x00", 1, conn);
+    connection_buf_add("\x00", 1, conn);
 }
 
 /** Receive the client's hash from <b>conn</b>, validate that it's
@@ -362,7 +368,7 @@ connection_ext_or_auth_handle_client_hash(connection_t *conn)
   if (connection_get_inbuf_len(conn) < EXT_OR_PORT_AUTH_HASH_LEN)
     return 0;
 
-  if (connection_fetch_from_buf(provided_client_hash,
+  if (connection_buf_get_bytes(provided_client_hash,
                                 EXT_OR_PORT_AUTH_HASH_LEN, conn) < 0)
     return -1;
 
@@ -454,6 +460,11 @@ connection_ext_or_handle_cmd_useraddr(connection_t *conn,
   tor_free(addr_str);
   if (res<0)
     return -1;
+  if (port == 0) {
+    log_warn(LD_GENERAL, "Server transport proxy gave us an empty port "
+             "in ExtORPort UserAddr command.");
+    // return -1; // enable this if nothing breaks after a while.
+  }
 
   res = tor_addr_parse(&addr, address_part);
   tor_free(address_part);
@@ -461,8 +472,8 @@ connection_ext_or_handle_cmd_useraddr(connection_t *conn,
     return -1;
 
   { /* do some logging */
-    char *old_address = tor_dup_addr(&conn->addr);
-    char *new_address = tor_dup_addr(&addr);
+    char *old_address = tor_addr_to_str_dup(&conn->addr);
+    char *new_address = tor_addr_to_str_dup(&addr);
 
     log_debug(LD_NET, "Received USERADDR."
              "We rewrite our address from '%s:%u' to '%s:%u'.",
@@ -478,7 +489,7 @@ connection_ext_or_handle_cmd_useraddr(connection_t *conn,
   if (conn->address) {
     tor_free(conn->address);
   }
-  conn->address = tor_dup_addr(&addr);
+  conn->address = tor_addr_to_str_dup(&addr);
 
   return 0;
 }
@@ -632,7 +643,7 @@ connection_ext_or_start_auth(or_connection_t *or_conn)
   log_debug(LD_GENERAL,
            "ExtORPort authentication: Sending supported authentication types");
 
-  connection_write_to_buf((const char *)authtypes, sizeof(authtypes), conn);
+  connection_buf_add((const char *)authtypes, sizeof(authtypes), conn);
   conn->state = EXT_OR_CONN_STATE_AUTH_WAIT_AUTH_TYPE;
 
   return 0;

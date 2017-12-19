@@ -1,11 +1,17 @@
 /* Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file reasons.c
  * \brief Convert circuit, stream, and orconn error reasons to and/or from
  * strings and errno values.
+ *
+ * This module is just a bunch of functions full of case statements that
+ * convert from one representation of our error codes to another. These are
+ * mainly used in generating log messages, in sending messages to the
+ * controller in control.c, and in converting errors from one protocol layer
+ * to another.
  **/
 
 #include "or.h"
@@ -39,6 +45,8 @@ stream_end_reason_to_control_string(int reason)
     case END_STREAM_REASON_CANT_ATTACH: return "CANT_ATTACH";
     case END_STREAM_REASON_NET_UNREACHABLE: return "NET_UNREACHABLE";
     case END_STREAM_REASON_SOCKSPROTOCOL: return "SOCKS_PROTOCOL";
+    // XXXX Controlspec
+    case END_STREAM_REASON_HTTPPROTOCOL: return "HTTP_PROTOCOL";
 
     case END_STREAM_REASON_PRIVATE_ADDR: return "PRIVATE_ADDR";
 
@@ -99,15 +107,9 @@ stream_end_reason_to_socks5_response(int reason)
     case END_STREAM_REASON_CONNECTREFUSED:
       return SOCKS5_CONNECTION_REFUSED;
     case END_STREAM_REASON_ENTRYPOLICY:
-    {
-      printf("tor: entry policy\n");
       return SOCKS5_NOT_ALLOWED;
-    }
     case END_STREAM_REASON_EXITPOLICY:
-    {
-      printf("tor: exit policy\n");
       return SOCKS5_NOT_ALLOWED;
-    }
     case END_STREAM_REASON_DESTROY:
       return SOCKS5_GENERAL_ERROR;
     case END_STREAM_REASON_DONE:
@@ -138,6 +140,11 @@ stream_end_reason_to_socks5_response(int reason)
       return SOCKS5_NET_UNREACHABLE;
     case END_STREAM_REASON_SOCKSPROTOCOL:
       return SOCKS5_GENERAL_ERROR;
+    case END_STREAM_REASON_HTTPPROTOCOL:
+      // LCOV_EXCL_START
+      tor_assert_nonfatal_unreached();
+      return SOCKS5_GENERAL_ERROR;
+      // LCOV_EXCL_STOP
     case END_STREAM_REASON_PRIVATE_ADDR:
       return SOCKS5_GENERAL_ERROR;
 
@@ -160,7 +167,7 @@ stream_end_reason_to_socks5_response(int reason)
 #else
 #define E_CASE(s) case s
 #define S_CASE(s) case s
-#endif
+#endif /* defined(_WIN32) */
 
 /** Given an errno from a failed exit connection, return a reason code
  * appropriate for use in a RELAY END cell. */
@@ -180,11 +187,12 @@ errno_to_stream_end_reason(int e)
     S_CASE(ENOTSOCK):
     S_CASE(EPROTONOSUPPORT):
     S_CASE(EAFNOSUPPORT):
-    E_CASE(EACCES):
     S_CASE(ENOTCONN):
-    S_CASE(ENETUNREACH):
       return END_STREAM_REASON_INTERNAL;
+    S_CASE(ENETUNREACH):
     S_CASE(EHOSTUNREACH):
+    E_CASE(EACCES):
+    case EPERM:
       return END_STREAM_REASON_NOROUTE;
     S_CASE(ECONNREFUSED):
       return END_STREAM_REASON_CONNECTREFUSED;
@@ -236,6 +244,8 @@ orconn_end_reason_to_control_string(int r)
       return "RESOURCELIMIT";
     case END_OR_CONN_REASON_MISC:
       return "MISC";
+    case END_OR_CONN_REASON_PT_MISSING:
+      return "PT_MISSING";
     case 0:
       return "";
     default:
@@ -353,6 +363,8 @@ circuit_end_reason_to_control_string(int reason)
       return "NOSUCHSERVICE";
     case END_CIRC_REASON_MEASUREMENT_EXPIRED:
       return "MEASUREMENT_EXPIRED";
+    case END_CIRC_REASON_IP_NOW_REDUNDANT:
+      return "IP_NOW_REDUNDANT";
     default:
       if (is_remote) {
         /*
@@ -370,7 +382,7 @@ circuit_end_reason_to_control_string(int reason)
   }
 }
 
-/** Return a string corresponding to a SOCKS4 reponse code. */
+/** Return a string corresponding to a SOCKS4 response code. */
 const char *
 socks4_response_code_to_string(uint8_t code)
 {
@@ -388,7 +400,7 @@ socks4_response_code_to_string(uint8_t code)
   }
 }
 
-/** Return a string corresponding to a SOCKS5 reponse code. */
+/** Return a string corresponding to a SOCKS5 response code. */
 const char *
 socks5_response_code_to_string(uint8_t code)
 {
@@ -434,6 +446,51 @@ bandwidth_weight_rule_to_string(bandwidth_weight_rule_t rule)
       return "weight as directory";
     default:
       return "unknown rule";
+  }
+}
+
+/** Given a RELAY_END reason value, convert it to an HTTP response to be
+ * send over an HTTP tunnel connection. */
+const char *
+end_reason_to_http_connect_response_line(int endreason)
+{
+  endreason &= END_STREAM_REASON_MASK;
+  /* XXXX these are probably all wrong. Should they all be 502? */
+  switch (endreason) {
+    case 0:
+      return "HTTP/1.0 200 OK\r\n\r\n";
+    case END_STREAM_REASON_MISC:
+      return "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+    case END_STREAM_REASON_RESOLVEFAILED:
+      return "HTTP/1.0 404 Not Found (resolve failed)\r\n\r\n";
+    case END_STREAM_REASON_NOROUTE:
+      return "HTTP/1.0 404 Not Found (no route)\r\n\r\n";
+    case END_STREAM_REASON_CONNECTREFUSED:
+      return "HTTP/1.0 403 Forbidden (connection refused)\r\n\r\n";
+    case END_STREAM_REASON_EXITPOLICY:
+      return "HTTP/1.0 403 Forbidden (exit policy)\r\n\r\n";
+    case END_STREAM_REASON_DESTROY:
+      return "HTTP/1.0 502 Bad Gateway (destroy cell received)\r\n\r\n";
+    case END_STREAM_REASON_DONE:
+      return "HTTP/1.0 502 Bad Gateway (unexpected close)\r\n\r\n";
+    case END_STREAM_REASON_TIMEOUT:
+      return "HTTP/1.0 504 Gateway Timeout\r\n\r\n";
+    case END_STREAM_REASON_HIBERNATING:
+      return "HTTP/1.0 502 Bad Gateway (hibernating server)\r\n\r\n";
+    case END_STREAM_REASON_INTERNAL:
+      return "HTTP/1.0 502 Bad Gateway (internal error)\r\n\r\n";
+    case END_STREAM_REASON_RESOURCELIMIT:
+      return "HTTP/1.0 502 Bad Gateway (resource limit)\r\n\r\n";
+    case END_STREAM_REASON_CONNRESET:
+      return "HTTP/1.0 403 Forbidden (connection reset)\r\n\r\n";
+    case END_STREAM_REASON_TORPROTOCOL:
+      return "HTTP/1.0 502 Bad Gateway (tor protocol violation)\r\n\r\n";
+    case END_STREAM_REASON_ENTRYPOLICY:
+      return "HTTP/1.0 403 Forbidden (entry policy violation)\r\n\r\n";
+    case END_STREAM_REASON_NOTDIRECTORY: /* Fall Through */
+    default:
+      tor_assert_nonfatal_unreached();
+      return "HTTP/1.0 500 Internal Server Error (weird end reason)\r\n\r\n";
   }
 }
 

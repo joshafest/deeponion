@@ -1,18 +1,45 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file statefile.c
+ *
+ * \brief Handles parsing and encoding the persistent 'state' file that carries
+ *  miscellaneous persistent state between Tor invocations.
+ *
+ * This 'state' file is a typed key-value store that allows multiple
+ * entries for the same key.  It follows the same metaformat as described
+ * in confparse.c, and uses the same code to read and write itself.
+ *
+ * The state file is most suitable for small values that don't change too
+ * frequently.  For values that become very large, we typically use a separate
+ * file -- for example, see how we handle microdescriptors, by storing them in
+ * a separate file with a journal.
+ *
+ * The current state is accessed via get_or_state(), which returns a singleton
+ * or_state_t object.  Functions that change it should call
+ * or_state_mark_dirty() to ensure that it will get written to disk.
+ *
+ * The or_state_save() function additionally calls various functioens
+ * throughout Tor that might want to flush more state to the the disk,
+ * including some in rephist.c, entrynodes.c, circuitstats.c, hibernate.c.
+ */
 
 #define STATEFILE_PRIVATE
 #include "or.h"
 #include "circuitstats.h"
 #include "config.h"
 #include "confparse.h"
+#include "connection.h"
+#include "control.h"
 #include "entrynodes.h"
 #include "hibernate.h"
 #include "rephist.h"
 #include "router.h"
+#include "sandbox.h"
 #include "statefile.h"
 
 /** A list of state-file "abbreviations," for compatibility. */
@@ -27,10 +54,14 @@ static config_abbrev_t state_abbrevs_[] = {
   { NULL, NULL, 0, 0},
 };
 
+/** dummy instance of or_state_t, used for type-checking its
+ * members with CONF_CHECK_VAR_TYPE. */
+DUMMY_TYPECHECK_INSTANCE(or_state_t);
+
 /*XXXX these next two are duplicates or near-duplicates from config.c */
 #define VAR(name,conftype,member,initvalue)                             \
-  { name, CONFIG_TYPE_ ## conftype, STRUCT_OFFSET(or_state_t, member),  \
-      initvalue }
+  { name, CONFIG_TYPE_ ## conftype, offsetof(or_state_t, member),       \
+      initvalue CONF_TEST_MEMBERS(or_state_t, conftype, member) }
 /** As VAR, but the option name and member name are the same. */
 #define V(member,conftype,initvalue)                                    \
   VAR(#member, conftype, member, initvalue)
@@ -59,6 +90,8 @@ static config_var_t state_vars_[] = {
   VAR("TransportProxy",               LINELIST_S, TransportProxies, NULL),
   V(TransportProxies,                 LINELIST_V, NULL),
 
+  V(HidServRevCounter,            LINELIST, NULL),
+
   V(BWHistoryReadEnds,                ISOTIME,  NULL),
   V(BWHistoryReadInterval,            UINT,     "900"),
   V(BWHistoryReadValues,              CSV,      ""),
@@ -76,6 +109,8 @@ static config_var_t state_vars_[] = {
   V(BWHistoryDirWriteValues,          CSV,      ""),
   V(BWHistoryDirWriteMaxima,          CSV,      ""),
 
+  V(Guard,                            LINELIST, NULL),
+
   V(TorVersion,                       STRING,   NULL),
 
   V(LastRotatedOnionKey,              ISOTIME,  NULL),
@@ -85,7 +120,8 @@ static config_var_t state_vars_[] = {
   V(CircuitBuildAbandonedCount,       UINT,     "0"),
   VAR("CircuitBuildTimeBin",          LINELIST_S, BuildtimeHistogram, NULL),
   VAR("BuildtimeHistogram",           LINELIST_V, BuildtimeHistogram, NULL),
-  { NULL, CONFIG_TYPE_OBSOLETE, 0, NULL }
+
+  END_OF_CONFIG_VARS
 };
 
 #undef VAR
@@ -103,15 +139,17 @@ static int or_state_validate_cb(void *old_options, void *options,
 /** "Extra" variable in the state that receives lines we can't parse. This
  * lets us preserve options from versions of Tor newer than us. */
 static config_var_t state_extra_var = {
-  "__extra", CONFIG_TYPE_LINELIST, STRUCT_OFFSET(or_state_t, ExtraLines), NULL
+  "__extra", CONFIG_TYPE_LINELIST, offsetof(or_state_t, ExtraLines), NULL
+  CONF_TEST_MEMBERS(or_state_t, LINELIST, ExtraLines)
 };
 
 /** Configuration format for or_state_t. */
 static const config_format_t state_format = {
   sizeof(or_state_t),
   OR_STATE_MAGIC,
-  STRUCT_OFFSET(or_state_t, magic_),
+  offsetof(or_state_t, magic_),
   state_abbrevs_,
+  NULL,
   state_vars_,
   or_state_validate_cb,
   &state_extra_var,
@@ -260,7 +298,7 @@ or_state_set(or_state_t *new_state)
 static void
 or_state_save_broken(char *fname)
 {
-  int i;
+  int i, res;
   file_status_t status;
   char *fname2 = NULL;
   for (i = 0; i < 100; ++i) {
@@ -274,17 +312,33 @@ or_state_save_broken(char *fname)
     log_warn(LD_BUG, "Unable to parse state in \"%s\"; too many saved bad "
              "state files to move aside. Discarding the old state file.",
              fname);
-    unlink(fname);
+    res = unlink(fname);
+    if (res != 0) {
+      log_warn(LD_FS,
+               "Also couldn't discard old state file \"%s\" because "
+               "unlink() failed: %s",
+               fname, strerror(errno));
+    }
   } else {
     log_warn(LD_BUG, "Unable to parse state in \"%s\". Moving it aside "
              "to \"%s\".  This could be a bug in Tor; please tell "
              "the developers.", fname, fname2);
-    if (rename(fname, fname2) < 0) {
+    if (tor_rename(fname, fname2) < 0) {//XXXX sandbox prohibits
       log_warn(LD_BUG, "Weirdly, I couldn't even move the state aside. The "
                "OS gave an error of %s", strerror(errno));
     }
   }
   tor_free(fname2);
+}
+
+STATIC or_state_t *
+or_state_new(void)
+{
+  or_state_t *new_state = tor_malloc_zero(sizeof(or_state_t));
+  new_state->magic_ = OR_STATE_MAGIC;
+  config_init(&state_format, new_state);
+
+  return new_state;
 }
 
 /** Reload the persistent state from disk, generating a new state as needed.
@@ -306,7 +360,10 @@ or_state_load(void)
         goto done;
       }
       break;
+    /* treat empty state files as if the file doesn't exist, and generate
+     * a new state file, overwriting the empty file in or_state_save() */
     case FN_NOENT:
+    case FN_EMPTY:
       break;
     case FN_ERROR:
     case FN_DIR:
@@ -314,16 +371,14 @@ or_state_load(void)
       log_warn(LD_GENERAL,"State file \"%s\" is not a file? Failing.", fname);
       goto done;
   }
-  new_state = tor_malloc_zero(sizeof(or_state_t));
-  new_state->magic_ = OR_STATE_MAGIC;
-  config_init(&state_format, new_state);
+  new_state = or_state_new();
   if (contents) {
     config_line_t *lines=NULL;
     int assign_retval;
     if (config_get_lines(contents, &lines, 0)<0)
       goto done;
     assign_retval = config_assign(&state_format, new_state,
-                                  lines, 0, 0, &errmsg);
+                                  lines, 0, &errmsg);
     config_free_lines(lines);
     if (assign_retval<0)
       badstate = 1;
@@ -351,11 +406,20 @@ or_state_load(void)
     tor_free(contents);
     config_free(&state_format, new_state);
 
-    new_state = tor_malloc_zero(sizeof(or_state_t));
-    new_state->magic_ = OR_STATE_MAGIC;
-    config_init(&state_format, new_state);
+    new_state = or_state_new();
   } else if (contents) {
     log_info(LD_GENERAL, "Loaded state from \"%s\"", fname);
+    /* Warn the user if their clock has been set backwards,
+     * they could be tricked into using old consensuses */
+    time_t apparent_skew = time(NULL) - new_state->LastWritten;
+    if (apparent_skew < 0) {
+      /* Initialize bootstrap event reporting because we might call
+       * clock_skew_warning() before the bootstrap state is
+       * initialized, causing an assertion failure. */
+      control_event_bootstrap(BOOTSTRAP_STATUS_STARTING, 0);
+      clock_skew_warning(NULL, (long)apparent_skew, 1, LD_GENERAL,
+                         "local state file", fname);
+    }
   } else {
     log_info(LD_GENERAL, "Initialized state");
   }
@@ -607,8 +671,6 @@ save_transport_to_state(const char *transport,
     *next = line = tor_malloc_zero(sizeof(config_line_t));
     line->key = tor_strdup("TransportProxy");
     tor_asprintf(&line->value, "%s %s", transport, fmt_addrport(addr, port));
-
-    next = &(line->next);
   }
 
   if (!get_options()->AvoidDiskWrites)
@@ -618,10 +680,19 @@ save_transport_to_state(const char *transport,
   tor_free(transport_addrport);
 }
 
+STATIC void
+or_state_free(or_state_t *state)
+{
+  if (!state)
+    return;
+
+  config_free(&state_format, state);
+}
+
 void
 or_state_free_all(void)
 {
-  config_free(&state_format, global_state);
+  or_state_free(global_state);
   global_state = NULL;
 }
 

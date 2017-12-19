@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -47,8 +47,8 @@ double rep_hist_get_stability(const char *id, time_t when);
 double rep_hist_get_weighted_fractional_uptime(const char *id, time_t when);
 long rep_hist_get_weighted_time_known(const char *id, time_t when);
 int rep_hist_have_measured_enough_stability(void);
-const char *rep_hist_get_router_stability_doc(time_t now);
 
+void predicted_ports_init(void);
 void rep_hist_note_used_port(time_t now, uint16_t port);
 smartlist_t *rep_hist_get_predicted_ports(time_t now);
 void rep_hist_remove_predicted_ports(const smartlist_t *rmv_ports);
@@ -60,9 +60,7 @@ int rep_hist_get_predicted_internal(time_t now, int *need_uptime,
 
 int any_predicted_circuits(time_t now);
 int rep_hist_circbuilding_dormant(time_t now);
-
-void note_crypto_pk_op(pk_op_t operation);
-void dump_pk_ops(int severity);
+int predicted_ports_prediction_time_remaining(time_t now);
 
 void rep_hist_exit_stats_init(time_t now);
 void rep_hist_reset_exit_stats(time_t now);
@@ -97,10 +95,53 @@ time_t rep_hist_conn_stats_write(time_t now);
 void rep_hist_conn_stats_term(void);
 
 void rep_hist_note_circuit_handshake_requested(uint16_t type);
-void rep_hist_note_circuit_handshake_completed(uint16_t type);
+void rep_hist_note_circuit_handshake_assigned(uint16_t type);
 void rep_hist_log_circuit_handshake_stats(time_t now);
+
+void rep_hist_hs_stats_init(time_t now);
+void rep_hist_hs_stats_term(void);
+time_t rep_hist_hs_stats_write(time_t now);
+char *rep_hist_get_hs_stats_string(void);
+void rep_hist_seen_new_rp_cell(void);
+void rep_hist_stored_maybe_new_hs(const crypto_pk_t *pubkey);
 
 void rep_hist_free_all(void);
 
+void rep_hist_note_negotiated_link_proto(unsigned link_proto,
+                                         int started_here);
+void rep_hist_log_link_protocol_counts(void);
+
+extern uint64_t rephist_total_alloc;
+extern uint32_t rephist_total_num;
+#ifdef TOR_UNIT_TESTS
+extern int onion_handshakes_requested[MAX_ONION_HANDSHAKE_TYPE+1];
+extern int onion_handshakes_assigned[MAX_ONION_HANDSHAKE_TYPE+1];
 #endif
+
+/**
+ * Represents the type of a cell for padding accounting
+ */
+typedef enum padding_type_t {
+    /** A RELAY_DROP cell */
+    PADDING_TYPE_DROP,
+    /** A CELL_PADDING cell */
+    PADDING_TYPE_CELL,
+    /** Total counts of padding and non-padding together */
+    PADDING_TYPE_TOTAL,
+    /** Total cell counts for all padding-enabled channels */
+    PADDING_TYPE_ENABLED_TOTAL,
+    /** CELL_PADDING counts for all padding-enabled channels */
+    PADDING_TYPE_ENABLED_CELL
+} padding_type_t;
+
+/** The amount of time over which the padding cell counts were counted */
+#define REPHIST_CELL_PADDING_COUNTS_INTERVAL (24*60*60)
+void rep_hist_padding_count_read(padding_type_t type);
+void rep_hist_padding_count_write(padding_type_t type);
+char *rep_hist_get_padding_count_lines(void);
+void rep_hist_reset_padding_counts(void);
+void rep_hist_prep_published_padding_counts(time_t now);
+void rep_hist_padding_count_timers(uint64_t num_timers);
+
+#endif /* !defined(TOR_REPHIST_H) */
 

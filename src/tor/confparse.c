@@ -1,8 +1,26 @@
+
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2017, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file confparse.c
+ *
+ * \brief Back-end for parsing and generating key-value files, used to
+ *   implement the torrc file format and the state file.
+ *
+ * This module is used by config.c to parse and encode torrc
+ * configuration files, and by statefile.c to parse and encode the
+ * $DATADIR/state file.
+ *
+ * To use this module, its callers provide an instance of
+ * config_format_t to describe the mappings from a set of configuration
+ * options to a number of fields in a C structure.  With this mapping,
+ * the functions here can convert back and forth between the C structure
+ * specified, and a linked list of key-value pairs.
+ */
 
 #include "or.h"
 #include "confparse.h"
@@ -60,118 +78,24 @@ config_expand_abbrev(const config_format_t *fmt, const char *option,
   return option;
 }
 
-/** Helper: allocate a new configuration option mapping 'key' to 'val',
- * append it to *<b>lst</b>. */
-void
-config_line_append(config_line_t **lst,
-                   const char *key,
-                   const char *val)
+/** If <b>key</b> is a deprecated configuration option, return the message
+ * explaining why it is deprecated (which may be an empty string). Return NULL
+ * if it is not deprecated. The <b>key</b> field must be fully expanded. */
+const char *
+config_find_deprecation(const config_format_t *fmt, const char *key)
 {
-  config_line_t *newline;
+  if (BUG(fmt == NULL) || BUG(key == NULL))
+    return NULL;
+  if (fmt->deprecations == NULL)
+    return NULL;
 
-  newline = tor_malloc_zero(sizeof(config_line_t));
-  newline->key = tor_strdup(key);
-  newline->value = tor_strdup(val);
-  newline->next = NULL;
-  while (*lst)
-    lst = &((*lst)->next);
-
-  (*lst) = newline;
-}
-
-/** Return the line in <b>lines</b> whose key is exactly <b>key</b>, or NULL
- * if no such key exists. For handling commandline-only options only; other
- * options should be looked up in the appropriate data structure. */
-const config_line_t *
-config_line_find(const config_line_t *lines,
-                 const char *key)
-{
-  const config_line_t *cl;
-  for (cl = lines; cl; cl = cl->next) {
-    if (!strcmp(cl->key, key))
-      return cl;
+  const config_deprecation_t *d;
+  for (d = fmt->deprecations; d->name; ++d) {
+    if (!strcasecmp(d->name, key)) {
+      return d->why_deprecated ? d->why_deprecated : "";
+    }
   }
   return NULL;
-}
-
-/** Helper: parse the config string and strdup into key/value
- * strings. Set *result to the list, or NULL if parsing the string
- * failed.  Return 0 on success, -1 on failure. Warn and ignore any
- * misformatted lines.
- *
- * If <b>extended</b> is set, then treat keys beginning with / and with + as
- * indicating "clear" and "append" respectively. */
-int
-config_get_lines(const char *string, config_line_t **result, int extended)
-{
-  config_line_t *list = NULL, **next;
-  char *k, *v;
-  const char *parse_err;
-
-  next = &list;
-  do {
-    k = v = NULL;
-    string = parse_config_line_from_str_verbose(string, &k, &v, &parse_err);
-    if (!string) {
-      log_warn(LD_CONFIG, "Error while parsing configuration: %s",
-               parse_err?parse_err:"<unknown>");
-      config_free_lines(list);
-      tor_free(k);
-      tor_free(v);
-      return -1;
-    }
-    if (k && v) {
-      unsigned command = CONFIG_LINE_NORMAL;
-      if (extended) {
-        if (k[0] == '+') {
-          char *k_new = tor_strdup(k+1);
-          tor_free(k);
-          k = k_new;
-          command = CONFIG_LINE_APPEND;
-        } else if (k[0] == '/') {
-          char *k_new = tor_strdup(k+1);
-          tor_free(k);
-          k = k_new;
-          tor_free(v);
-          v = tor_strdup("");
-          command = CONFIG_LINE_CLEAR;
-        }
-      }
-      /* This list can get long, so we keep a pointer to the end of it
-       * rather than using config_line_append over and over and getting
-       * n^2 performance. */
-      *next = tor_malloc_zero(sizeof(config_line_t));
-      (*next)->key = k;
-      (*next)->value = v;
-      (*next)->next = NULL;
-      (*next)->command = command;
-      next = &((*next)->next);
-    } else {
-      tor_free(k);
-      tor_free(v);
-    }
-  } while (*string);
-
-  *result = list;
-  return 0;
-}
-
-/**
- * Free all the configuration lines on the linked list <b>front</b>.
- */
-void
-config_free_lines(config_line_t *front)
-{
-  config_line_t *tmp;
-
-  while (front) {
-    tmp = front;
-    front = tmp->next;
-
-    tor_free(tmp->key);
-    tor_free(tmp->value);
-    tor_free(tmp);
-  }
 }
 
 /** As config_find_option, but return a non-const pointer. */
@@ -456,6 +380,16 @@ config_mark_lists_fragile(const config_format_t *fmt, void *options)
   }
 }
 
+void
+warn_deprecated_option(const char *what, const char *why)
+{
+  const char *space = (why && strlen(why)) ? " " : "";
+  log_warn(LD_CONFIG, "The %s option is deprecated, and will most likely "
+           "be removed in a future version of Tor.%s%s (If you think this is "
+           "a mistake, please let us know!)",
+           what, space, why);
+}
+
 /** If <b>c</b> is a syntactically valid configuration line, update
  * <b>options</b> with its value and return 0.  Otherwise return -1 for bad
  * key, -2 for bad value.
@@ -467,9 +401,12 @@ config_mark_lists_fragile(const config_format_t *fmt, void *options)
  */
 static int
 config_assign_line(const config_format_t *fmt, void *options,
-                   config_line_t *c, int use_defaults,
-                   int clear_first, bitarray_t *options_seen, char **msg)
+                   config_line_t *c, unsigned flags,
+                   bitarray_t *options_seen, char **msg)
 {
+  const unsigned use_defaults = flags & CAL_USE_DEFAULTS;
+  const unsigned clear_first = flags & CAL_CLEAR_FIRST;
+  const unsigned warn_deprecations = flags & CAL_WARN_DEPRECATIONS;
   const config_var_t *var;
 
   CONFIG_CHECK(fmt, options);
@@ -493,6 +430,12 @@ config_assign_line(const config_format_t *fmt, void *options,
   if (strcmp(var->name, c->key)) {
     tor_free(c->key);
     c->key = tor_strdup(var->name);
+  }
+
+  const char *deprecation_msg;
+  if (warn_deprecations &&
+      (deprecation_msg = config_find_deprecation(fmt, var->name))) {
+    warn_deprecated_option(var->name, deprecation_msg);
   }
 
   if (!strlen(c->value)) {
@@ -574,30 +517,13 @@ config_value_needs_escape(const char *value)
   return 0;
 }
 
-/** Return a newly allocated deep copy of the lines in <b>inp</b>. */
-config_line_t *
-config_lines_dup(const config_line_t *inp)
-{
-  config_line_t *result = NULL;
-  config_line_t **next_out = &result;
-  while (inp) {
-    *next_out = tor_malloc_zero(sizeof(config_line_t));
-    (*next_out)->key = tor_strdup(inp->key);
-    (*next_out)->value = tor_strdup(inp->value);
-    inp = inp->next;
-    next_out = &((*next_out)->next);
-  }
-  (*next_out) = NULL;
-  return result;
-}
-
 /** Return newly allocated line or lines corresponding to <b>key</b> in the
  * configuration <b>options</b>.  If <b>escape_val</b> is true and a
  * value needs to be quoted before it's put in a config file, quote and
  * escape that value. Return NULL if no such key exists. */
 config_line_t *
 config_get_assigned_option(const config_format_t *fmt, const void *options,
-                             const char *key, int escape_val)
+                           const char *key, int escape_val)
 {
   const config_var_t *var;
   const void *value;
@@ -707,11 +633,11 @@ config_get_assigned_option(const config_format_t *fmt, const void *options,
       tor_free(result);
       return NULL;
     case CONFIG_TYPE_LINELIST_S:
-      log_warn(LD_CONFIG,
-               "Can't return context-sensitive '%s' on its own", key);
       tor_free(result->key);
       tor_free(result);
-      return NULL;
+      result = config_lines_dup_and_filter(*(const config_line_t **)value,
+                                           key);
+      break;
     case CONFIG_TYPE_LINELIST:
     case CONFIG_TYPE_LINELIST_V:
       tor_free(result->key);
@@ -797,11 +723,13 @@ options_trial_assign() calls config_assign(1, 1)
 */
 int
 config_assign(const config_format_t *fmt, void *options, config_line_t *list,
-              int use_defaults, int clear_first, char **msg)
+              unsigned config_assign_flags, char **msg)
 {
   config_line_t *p;
   bitarray_t *options_seen;
   const int n_options = config_count_options(fmt);
+  const unsigned clear_first = config_assign_flags & CAL_CLEAR_FIRST;
+  const unsigned use_defaults = config_assign_flags & CAL_USE_DEFAULTS;
 
   CONFIG_CHECK(fmt, options);
 
@@ -825,8 +753,8 @@ config_assign(const config_format_t *fmt, void *options, config_line_t *list,
   /* pass 3: assign. */
   while (list) {
     int r;
-    if ((r=config_assign_line(fmt, options, list, use_defaults,
-                              clear_first, options_seen, msg))) {
+    if ((r=config_assign_line(fmt, options, list, config_assign_flags,
+                              options_seen, msg))) {
       bitarray_free(options_seen);
       return r;
     }
@@ -954,36 +882,6 @@ config_free(const config_format_t *fmt, void *options)
   tor_free(options);
 }
 
-/** Return true iff a and b contain identical keys and values in identical
- * order. */
-int
-config_lines_eq(config_line_t *a, config_line_t *b)
-{
-  while (a && b) {
-    if (strcasecmp(a->key, b->key) || strcmp(a->value, b->value))
-      return 0;
-    a = a->next;
-    b = b->next;
-  }
-  if (a || b)
-    return 0;
-  return 1;
-}
-
-/** Return the number of lines in <b>a</b> whose key is <b>key</b>. */
-int
-config_count_key(const config_line_t *a, const char *key)
-{
-  int n = 0;
-  while (a) {
-    if (!strcasecmp(a->key, key)) {
-      ++n;
-    }
-    a = a->next;
-  }
-  return n;
-}
-
 /** Return true iff the option <b>name</b> has the same value in <b>o1</b>
  * and <b>o2</b>.  Must not be called for LINELIST_S or OBSOLETE options.
  */
@@ -1022,7 +920,7 @@ config_dup(const config_format_t *fmt, const void *old)
     line = config_get_assigned_option(fmt, old, fmt->vars[i].name, 0);
     if (line) {
       char *msg = NULL;
-      if (config_assign(fmt, newopts, line, 0, 0, &msg) < 0) {
+      if (config_assign(fmt, newopts, line, 0, &msg) < 0) {
         log_err(LD_BUG, "config_get_assigned_option() generated "
                 "something we couldn't config_assign(): %s", msg);
         tor_free(msg);
@@ -1100,6 +998,11 @@ config_dump(const config_format_t *fmt, const void *default_options,
       config_get_assigned_option(fmt, options, fmt->vars[i].name, 1);
 
     for (; line; line = line->next) {
+      if (!strcmpstart(line->key, "__")) {
+        /* This check detects "hidden" variables inside LINELIST_V structures.
+         */
+        continue;
+      }
       smartlist_add_asprintf(elements, "%s%s %s\n",
                    comment_option ? "# " : "",
                    line->key, line->value);
@@ -1165,6 +1068,8 @@ static struct unit_table_t memory_units[] = {
   { "gbits",     1<<27 },
   { "gbit",      1<<27 },
   { "tb",        U64_LITERAL(1)<<40 },
+  { "tbyte",     U64_LITERAL(1)<<40 },
+  { "tbytes",    U64_LITERAL(1)<<40 },
   { "terabyte",  U64_LITERAL(1)<<40 },
   { "terabytes", U64_LITERAL(1)<<40 },
   { "terabits",  U64_LITERAL(1)<<37 },
@@ -1231,7 +1136,7 @@ config_parse_units(const char *val, struct unit_table_t *u, int *ok)
 
   v = tor_parse_uint64(val, 10, 0, UINT64_MAX, ok, &cp);
   if (!*ok || (cp && *cp == '.')) {
-    d = tor_parse_double(val, 0, UINT64_MAX, ok, &cp);
+    d = tor_parse_double(val, 0, (double)UINT64_MAX, ok, &cp);
     if (!*ok)
       goto done;
     use_float = 1;
@@ -1248,7 +1153,7 @@ config_parse_units(const char *val, struct unit_table_t *u, int *ok)
   for ( ;u->unit;++u) {
     if (!strcasecmp(u->unit, cp)) {
       if (use_float)
-        v = u->multiplier * d;
+        v = (uint64_t)(u->multiplier * d);
       else
         v *= u->multiplier;
       *ok = 1;
@@ -1285,8 +1190,6 @@ config_parse_msec_interval(const char *s, int *ok)
 {
   uint64_t r;
   r = config_parse_units(s, time_msec_units, ok);
-  if (!ok)
-    return -1;
   if (r > INT_MAX) {
     log_warn(LD_CONFIG, "Msec interval '%s' is too long", s);
     *ok = 0;
@@ -1304,8 +1207,6 @@ config_parse_interval(const char *s, int *ok)
 {
   uint64_t r;
   r = config_parse_units(s, time_units, ok);
-  if (!ok)
-    return -1;
   if (r > INT_MAX) {
     log_warn(LD_CONFIG, "Interval '%s' is too long", s);
     *ok = 0;

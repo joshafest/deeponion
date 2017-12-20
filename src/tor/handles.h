@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Tor Project, Inc. */
+/* Copyright (c) 2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -51,7 +51,7 @@
 
 #include "orconfig.h"
 #include "tor_queue.h"
-#include "util.h"
+#include "torutil.h"
 
 #define HANDLE_ENTRY(name, structname)         \
   struct name ## _handle_head_t *handle_head
@@ -149,5 +149,5 @@
     }                                                                   \
   }
 
-#endif /* !defined(TOR_HANDLE_H) */
+#endif /* TOR_HANDLE_H */
 

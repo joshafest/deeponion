@@ -1,6 +1,6 @@
 /* Copyright (c) 2003, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 #ifndef TOR_TORTLS_H
@@ -13,7 +13,7 @@
 
 #include "crypto.h"
 #include "compat_openssl.h"
-#include "compat.h"
+#include "torcompat.h"
 #include "testsupport.h"
 
 /* Opaque structure to hold a TLS connection. */
@@ -63,17 +63,12 @@ typedef enum {
 } tor_tls_state_t;
 #define tor_tls_state_bitfield_t ENUM_BF(tor_tls_state_t)
 
-struct x509_st;
-struct ssl_st;
-struct ssl_ctx_st;
-struct ssl_session_st;
-
 /** Holds a SSL_CTX object and related state used to configure TLS
  * connections.
  */
 typedef struct tor_tls_context_t {
   int refcnt;
-  struct ssl_ctx_st *ctx;
+  SSL_CTX *ctx;
   tor_x509_cert_t *my_link_cert;
   tor_x509_cert_t *my_id_cert;
   tor_x509_cert_t *my_auth_cert;
@@ -83,7 +78,7 @@ typedef struct tor_tls_context_t {
 
 /** Structure that we use for a single certificate. */
 struct tor_x509_cert_t {
-  struct x509_st *cert;
+  X509 *cert;
   uint8_t *encoded;
   size_t encoded_len;
   unsigned pkey_digests_set : 1;
@@ -97,7 +92,7 @@ struct tor_x509_cert_t {
 struct tor_tls_t {
   uint32_t magic;
   tor_tls_context_t *context; /** A link to the context object for this tls. */
-  struct ssl_st *ssl; /**< An OpenSSL SSL object. */
+  SSL *ssl; /**< An OpenSSL SSL object. */
   int socket; /**< The underlying file descriptor for this TLS connection. */
   char *address; /**< An address to log when describing this connection. */
   tor_tls_state_bitfield_t state : 3; /**< The current SSL state,
@@ -133,45 +128,35 @@ struct tor_tls_t {
 STATIC int tor_errno_to_tls_error(int e);
 STATIC int tor_tls_get_error(tor_tls_t *tls, int r, int extra,
                   const char *doing, int severity, int domain);
-STATIC tor_tls_t *tor_tls_get_by_ssl(const struct ssl_st *ssl);
+STATIC tor_tls_t *tor_tls_get_by_ssl(const SSL *ssl);
 STATIC void tor_tls_allocate_tor_tls_object_ex_data_index(void);
-#ifdef TORTLS_OPENSSL_PRIVATE
 STATIC int always_accept_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx);
-STATIC int tor_tls_classify_client_ciphers(const struct ssl_st *ssl,
+STATIC int tor_tls_classify_client_ciphers(const SSL *ssl,
                                            STACK_OF(SSL_CIPHER) *peer_ciphers);
-#endif
-STATIC int tor_tls_client_is_using_v2_ciphers(const struct ssl_st *ssl);
+STATIC int tor_tls_client_is_using_v2_ciphers(const SSL *ssl);
 MOCK_DECL(STATIC void, try_to_extract_certs_from_tls,
-          (int severity, tor_tls_t *tls, struct x509_st **cert_out,
-           struct x509_st **id_cert_out));
+          (int severity, tor_tls_t *tls, X509 **cert_out, X509 **id_cert_out));
 #ifndef HAVE_SSL_SESSION_GET_MASTER_KEY
-STATIC size_t SSL_SESSION_get_master_key(struct ssl_session_st *s,
-                                         uint8_t *out,
+STATIC size_t SSL_SESSION_get_master_key(SSL_SESSION *s, uint8_t *out,
                                          size_t len);
 #endif
-STATIC void tor_tls_debug_state_callback(const struct ssl_st *ssl,
-                                         int type, int val);
-STATIC void tor_tls_server_info_callback(const struct ssl_st *ssl,
-                                         int type, int val);
-#ifdef TORTLS_OPENSSL_PRIVATE
-STATIC int tor_tls_session_secret_cb(struct ssl_st *ssl, void *secret,
+STATIC void tor_tls_debug_state_callback(const SSL *ssl, int type, int val);
+STATIC void tor_tls_server_info_callback(const SSL *ssl, int type, int val);
+STATIC int tor_tls_session_secret_cb(SSL *ssl, void *secret,
                             int *secret_len,
                             STACK_OF(SSL_CIPHER) *peer_ciphers,
                             CONST_IF_OPENSSL_1_1_API SSL_CIPHER **cipher,
                             void *arg);
 STATIC int find_cipher_by_id(const SSL *ssl, const SSL_METHOD *m,
                              uint16_t cipher);
-#endif /* defined(TORTLS_OPENSSL_PRIVATE) */
-MOCK_DECL(STATIC struct x509_st *, tor_tls_create_certificate,
-                                                   (crypto_pk_t *rsa,
+MOCK_DECL(STATIC X509*, tor_tls_create_certificate,(crypto_pk_t *rsa,
                                                     crypto_pk_t *rsa_sign,
                                                     const char *cname,
                                                     const char *cname_sign,
                                                   unsigned int cert_lifetime));
 STATIC tor_tls_context_t *tor_tls_context_new(crypto_pk_t *identity,
                    unsigned int key_lifetime, unsigned flags, int is_client);
-MOCK_DECL(STATIC tor_x509_cert_t *, tor_x509_cert_new,
-          (struct x509_st *x509_cert));
+MOCK_DECL(STATIC tor_x509_cert_t *, tor_x509_cert_new,(X509 *x509_cert));
 STATIC int tor_tls_context_init_one(tor_tls_context_t **ppcontext,
                                     crypto_pk_t *identity,
                                     unsigned int key_lifetime,
@@ -187,14 +172,9 @@ extern tor_tls_context_t *client_tls_context;
 extern uint16_t v2_cipher_list[];
 extern uint64_t total_bytes_written_over_tls;
 extern uint64_t total_bytes_written_by_tls;
+#endif
 
-STATIC tor_x509_cert_t *tor_x509_cert_replace_expiration(
-                                               const tor_x509_cert_t *inp,
-                                               time_t new_expiration_time,
-                                               crypto_pk_t *signing_key);
-#endif /* defined(TOR_UNIT_TESTS) */
-
-#endif /* defined(TORTLS_PRIVATE) */
+#endif /* endif TORTLS_PRIVATE */
 
 tor_x509_cert_t *tor_x509_cert_dup(const tor_x509_cert_t *cert);
 const char *tor_tls_err_to_string(int err);
@@ -288,5 +268,5 @@ const char *tor_tls_get_ciphersuite_name(tor_tls_t *tls);
 
 int evaluate_ecgroup_for_tls(const char *ecgroup);
 
-#endif /* !defined(TOR_TORTLS_H) */
+#endif
 

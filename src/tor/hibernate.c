@@ -1,5 +1,5 @@
 /* Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -36,7 +36,7 @@ hibernating, phase 2:
 #include "connection_edge.h"
 #include "control.h"
 #include "hibernate.h"
-#include "main.h"
+#include "tormain.h"
 #include "router.h"
 #include "statefile.h"
 
@@ -331,7 +331,7 @@ edge_of_accounting_period_containing(time_t now, int get_end)
     case UNIT_MONTH: {
       /* If this is before the Nth, we want the Nth of last month. */
       if (tm.tm_mday < cfg_start_day ||
-          (tm.tm_mday == cfg_start_day && before)) {
+          (tm.tm_mday < cfg_start_day && before)) {
         --tm.tm_mon;
       }
       /* Otherwise, the month is correct. */
@@ -587,10 +587,7 @@ accounting_set_wakeup_time(void)
     char buf[ISO_TIME_LEN+1];
     format_iso_time(buf, interval_start_time);
 
-    if (crypto_pk_get_digest(get_server_identity_key(), digest) < 0) {
-      log_err(LD_BUG, "Error getting our key's digest.");
-      tor_assert(0);
-    }
+    crypto_pk_get_digest(get_server_identity_key(), digest);
 
     d_env = crypto_digest_new();
     crypto_digest_add_bytes(d_env, buf, ISO_TIME_LEN);
@@ -1124,5 +1121,5 @@ hibernate_set_state_for_testing_(hibernate_state_t newstate)
 {
   hibernate_state = newstate;
 }
-#endif /* defined(TOR_UNIT_TESTS) */
+#endif
 

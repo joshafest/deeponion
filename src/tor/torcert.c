@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -31,8 +31,8 @@
 #include "torcert.h"
 #include "ed25519_cert.h"
 #include "torlog.h"
-#include "util.h"
-#include "compat.h"
+#include "torutil.h"
+#include "torcompat.h"
 #include "link_handshake.h"
 
 /** Helper for tor_cert_create(): signs any 32 bytes, not just an ed25519
@@ -76,38 +76,29 @@ tor_cert_sign_impl(const ed25519_keypair_t *signing_key,
   ed25519_signature_t signature;
   if (ed25519_sign(&signature, encoded,
                    real_len-ED25519_SIG_LEN, signing_key)<0) {
-    /* LCOV_EXCL_START */
     log_warn(LD_BUG, "Can't sign certificate");
     goto err;
-    /* LCOV_EXCL_STOP */
   }
   memcpy(sig, signature.sig, ED25519_SIG_LEN);
 
   torcert = tor_cert_parse(encoded, real_len);
   if (! torcert) {
-    /* LCOV_EXCL_START */
     log_warn(LD_BUG, "Generated a certificate we cannot parse");
     goto err;
-    /* LCOV_EXCL_STOP */
   }
 
   if (tor_cert_checksig(torcert, &signing_key->pubkey, now) < 0) {
-    /* LCOV_EXCL_START */
     log_warn(LD_BUG, "Generated a certificate whose signature we can't check");
     goto err;
-    /* LCOV_EXCL_STOP */
   }
 
   tor_free(encoded);
 
   goto done;
 
- /* LCOV_EXCL_START */
  err:
   tor_cert_free(torcert);
   torcert = NULL;
- /* LCOV_EXCL_STOP */
-
  done:
   ed25519_cert_free(cert);
   tor_free(encoded);
@@ -311,10 +302,6 @@ tor_make_rsa_ed25519_crosscert(const ed25519_public_key_t *ed_key,
                                time_t expires,
                                uint8_t **cert)
 {
-  // It is later than 1985, since otherwise there would be no C89
-  // compilers. (Try to diagnose #22466.)
-  tor_assert_nonfatal(expires >= 15 * 365 * 86400);
-
   uint8_t *res;
 
   rsa_ed_crosscert_t *cc = rsa_ed_crosscert_new();
@@ -365,12 +352,12 @@ tor_make_rsa_ed25519_crosscert(const ed25519_public_key_t *ed_key,
  *
  * Return 0 on success, negative on failure.
  */
-MOCK_IMPL(int,
-rsa_ed25519_crosscert_check, (const uint8_t *crosscert,
-                              const size_t crosscert_len,
-                              const crypto_pk_t *rsa_id_key,
-                              const ed25519_public_key_t *master_key,
-                              const time_t reject_if_expired_before))
+int
+rsa_ed25519_crosscert_check(const uint8_t *crosscert,
+                            const size_t crosscert_len,
+                            const crypto_pk_t *rsa_id_key,
+                            const ed25519_public_key_t *master_key,
+                            const time_t reject_if_expired_before)
 {
   rsa_ed_crosscert_t *cc = NULL;
   int rv;
@@ -402,7 +389,7 @@ rsa_ed25519_crosscert_check, (const uint8_t *crosscert,
   }
 
   const uint32_t expiration_date = rsa_ed_crosscert_get_expiration(cc);
-  const uint64_t expiration_time = ((uint64_t)expiration_date) * 3600;
+  const uint64_t expiration_time = expiration_date * 3600;
 
   if (reject_if_expired_before < 0 ||
       expiration_time < (uint64_t)reject_if_expired_before) {
@@ -684,10 +671,8 @@ tor_cert_encode_ed22519(const tor_cert_t *cert, char **cert_str_out)
   if (base64_encode(ed_cert_b64, ed_cert_b64_len,
                     (const char *) cert->encoded, cert->encoded_len,
                     BASE64_ENCODE_MULTILINE) < 0) {
-    /* LCOV_EXCL_START */
     log_err(LD_BUG, "Couldn't base64-encode ed22519 cert!");
     goto err;
-    /* LCOV_EXCL_STOP */
   }
 
   /* Put everything together in a NUL terminated string. */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2017, The Tor Project, Inc. */
+/* Copyright (c) 2011-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -8,7 +8,7 @@
 
 #include "procmon.h"
 
-#include "util.h"
+#include "torutil.h"
 
 #include <event2/event.h>
 
@@ -36,7 +36,7 @@ typedef int pid_t;
 #define PID_T_FORMAT I64_FORMAT
 #else
 #error Unknown: SIZEOF_PID_T
-#endif /* (0 == SIZEOF_PID_T) && defined(_WIN32) || ... */
+#endif
 
 /* Define to 1 if process-termination monitors on this OS and Libevent
    version must poll for process termination themselves. */
@@ -71,7 +71,7 @@ parse_process_specifier(const char *process_spec,
 
   /* If we're lucky, long will turn out to be large enough to hold a
    * PID everywhere that Tor runs. */
-  pid_l = tor_parse_long(process_spec, 10, 1, LONG_MAX, &pid_ok, &pspec_next);
+  pid_l = tor_parse_long(process_spec, 0, 1, LONG_MAX, &pid_ok, &pspec_next);
 
   /* Reserve room in the ‘process specifier’ for additional
    * (platform-specific) identifying information beyond the PID, to
@@ -114,7 +114,7 @@ struct tor_process_monitor_t {
   HANDLE hproc;
   /* XXXX We should have Libevent watch hproc for us,
    * if/when some version of Libevent can be told to do so. */
-#endif /* defined(_WIN32) */
+#endif
 
   /* XXXX On Linux, we can and should receive the 22nd
    * (space-delimited) field (‘starttime’) of /proc/$PID/stat from the
@@ -219,7 +219,7 @@ tor_process_monitor_new(struct event_base *base,
              "try again later.",
              procmon->pid);
   }
-#endif /* defined(_WIN32) */
+#endif
 
   procmon->cb = cb;
   procmon->cb_arg = cb_arg;
@@ -232,9 +232,9 @@ tor_process_monitor_new(struct event_base *base,
    * tor_evtimer_new never returns NULL. */
 
   evtimer_add(procmon->e, &poll_interval_tv);
-#else /* !(defined(PROCMON_POLLS)) */
+#else
 #error OOPS?
-#endif /* defined(PROCMON_POLLS) */
+#endif
 
   return procmon;
  err:
@@ -306,11 +306,11 @@ tor_process_monitor_poll_cb(evutil_socket_t unused1, short unused2,
       tor_free(errmsg);
     }
   }
-#else /* !(defined(_WIN32)) */
+#else
   /* Unix makes this part easy, if a bit racy. */
   its_dead_jim = kill(procmon->pid, 0);
   its_dead_jim = its_dead_jim && (errno == ESRCH);
-#endif /* defined(_WIN32) */
+#endif
 
   tor_log(its_dead_jim ? LOG_NOTICE : LOG_INFO,
       procmon->log_domain, "Monitored process "PID_T_FORMAT" is %s.",
@@ -321,7 +321,7 @@ tor_process_monitor_poll_cb(evutil_socket_t unused1, short unused2,
     procmon->cb(procmon->cb_arg);
   }
 }
-#endif /* defined(PROCMON_POLLS) */
+#endif
 
 /** Free the process-termination monitor <b>procmon</b>. */
 void

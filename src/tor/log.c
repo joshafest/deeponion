@@ -1,7 +1,7 @@
 /* Copyright (c) 2001, Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -30,8 +30,8 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
-#include "compat.h"
-#include "util.h"
+#include "torcompat.h"
+#include "torutil.h"
 #define LOG_PRIVATE
 #include "torlog.h"
 #include "container.h"
@@ -162,7 +162,7 @@ static int pretty_fn_has_parens = 0;
 
 /** What's the lowest log level anybody cares about?  Checking this lets us
  * bail out early from log_debug if we aren't debugging.  */
-int log_global_min_severity_ = LOG_NOTICE;
+int log_global_min_severity_ = LOG_INFO;
 
 static void delete_log(logfile_t *victim);
 static void close_log(logfile_t *victim);
@@ -444,11 +444,11 @@ logfile_deliver(logfile_t *lf, const char *buf, size_t msg_len,
     if (m != msg_after_prefix) {
       tor_free(m);
     }
-#else /* !(defined(MAXLINE)) */
+#else
     /* We have syslog but not MAXLINE.  That's promising! */
     syslog(severity, "%s", msg_after_prefix);
-#endif /* defined(MAXLINE) */
-#endif /* defined(HAVE_SYSLOG_H) */
+#endif
+#endif
   } else if (lf->callback) {
     if (domain & LD_NOCB) {
       if (!*callbacks_deferred && pending_cb_messages) {
@@ -807,7 +807,7 @@ close_log(logfile_t *victim)
       /* There are no other syslogs; close the logging facility. */
       closelog();
     }
-#endif /* defined(HAVE_SYSLOG_H) */
+#endif
   }
 }
 
@@ -1086,7 +1086,7 @@ add_file_log(const log_severity_list_t *severity, const char *filename,
   int open_flags = O_WRONLY|O_CREAT;
   open_flags |= truncate_log ? O_TRUNC : O_APPEND;
 
-  fd = tor_open_cloexec(filename, open_flags, 0640);
+  fd = tor_open_cloexec(filename, open_flags, 0644);
   if (fd<0)
     return -1;
   if (tor_fd_seekend(fd)<0) {
@@ -1144,7 +1144,7 @@ add_syslog_log(const log_severity_list_t *severity,
   UNLOCK_LOGS();
   return 0;
 }
-#endif /* defined(HAVE_SYSLOG_H) */
+#endif
 
 /** If <b>level</b> is a valid log severity, return the corresponding
  * numeric value.  Otherwise, return -1. */
@@ -1177,7 +1177,7 @@ static const char *domain_list[] = {
   "GENERAL", "CRYPTO", "NET", "CONFIG", "FS", "PROTOCOL", "MM",
   "HTTP", "APP", "CONTROL", "CIRC", "REND", "BUG", "DIR", "DIRSERV",
   "OR", "EDGE", "ACCT", "HIST", "HANDSHAKE", "HEARTBEAT", "CHANNEL",
-  "SCHED", "GUARD", "CONSDIFF", NULL
+  "SCHED", "GUARD", NULL
 };
 
 /** Return a bitmask for the log domain for which <b>domain</b> is the name,

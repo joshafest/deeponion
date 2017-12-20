@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2017, The Tor Project, Inc. */
+/* Copyright (c) 2010-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -22,7 +22,7 @@
 #include "relay.h"
 #include "router.h"
 #include "circuitlist.h"
-#include "main.h"
+#include "tormain.h"
 #include "rephist.h"
 #include "hibernate.h"
 #include "rephist.h"

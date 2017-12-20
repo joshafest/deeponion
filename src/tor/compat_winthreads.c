@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -12,10 +12,10 @@
 
 #ifdef _WIN32
 
-#include "compat.h"
+#include "torcompat.h"
 #include <windows.h>
 #include <process.h>
-#include "util.h"
+#include "torutil.h"
 #include "container.h"
 #include "torlog.h"
 #include <process.h>
@@ -246,5 +246,5 @@ tor_threads_init(void)
   set_main_thread();
 }
 
-#endif /* defined(_WIN32) */
+#endif
 

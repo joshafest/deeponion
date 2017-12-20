@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Tor Project, Inc. */
+/* Copyright (c) 2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -288,7 +288,7 @@ protover_get_supported_protocols(void)
   return
     "Cons=1-2 "
     "Desc=1-2 "
-    "DirCache=1-2 "
+    "DirCache=1 "
     "HSDir=1-2 "
     "HSIntro=3-4 "
     "HSRend=1-2 "
@@ -694,11 +694,6 @@ protocol_list_contains(const smartlist_t *protos,
 const char *
 protover_compute_for_old_tor(const char *version)
 {
-  if (version == NULL) {
-    /* No known version; guess the oldest series that is still supported. */
-    version = "0.2.5.15";
-  }
-
   if (tor_version_as_new_as(version,
                             FIRST_TOR_VERSION_TO_ADVERTISE_PROTOCOLS)) {
     return "";

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Tor Project, Inc. */
+/* Copyright (c) 2012-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -24,7 +24,7 @@
 #include "crypto.h"
 #include "onion_ntor.h"
 #include "torlog.h"
-#include "util.h"
+#include "torutil.h"
 
 /** Free storage held in an ntor handshake state. */
 void

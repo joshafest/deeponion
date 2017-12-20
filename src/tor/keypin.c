@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Tor Project, Inc. */
+/* Copyright (c) 2014-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -11,7 +11,7 @@
 #define KEYPIN_PRIVATE
 
 #include "orconfig.h"
-#include "compat.h"
+#include "torcompat.h"
 #include "crypto.h"
 #include "crypto_format.h"
 #include "di_ops.h"
@@ -20,7 +20,7 @@
 #include "siphash.h"
 #include "torint.h"
 #include "torlog.h"
-#include "util.h"
+#include "torutil.h"
 #include "util_format.h"
 
 #ifdef HAVE_UNISTD_H

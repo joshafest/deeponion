@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -19,8 +19,8 @@
 #include <sys/wait.h>
 #endif
 
-#include "compat.h"
-#include "util.h"
+#include "torcompat.h"
+#include "torutil.h"
 #include "torlog.h"
 #include "util_process.h"
 #include "ht.h"
@@ -154,5 +154,5 @@ notify_pending_waitpid_callbacks(void)
   }
 }
 
-#endif /* !defined(_WIN32) */
+#endif
 

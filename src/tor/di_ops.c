@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2017, The Tor Project, Inc. */
+/* Copyright (c) 2011-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -9,7 +9,7 @@
 #include "orconfig.h"
 #include "di_ops.h"
 #include "torlog.h"
-#include "util.h"
+#include "torutil.h"
 
 /**
  * Timing-safe version of memcmp.  As memcmp, compare the <b>sz</b> bytes at
@@ -86,7 +86,7 @@ tor_memcmp(const void *a, const void *b, size_t len)
   }
 
   return retval;
-#endif /* defined(HAVE_TIMINGSAFE_MEMCMP) */
+#endif /* timingsafe_memcmp */
 }
 
 /**
@@ -238,7 +238,7 @@ gt_i64_timei(uint64_t a, uint64_t b)
   int res = diff >> 63;
   return res & 1;
 }
-#endif /* SIZEOF_VOID_P == 8 */
+#endif
 
 /**
  * Given an array of list of <b>n_entries</b> uint64_t values, whose sum is

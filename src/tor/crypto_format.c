@@ -1,7 +1,7 @@
 /* Copyright (c) 2001, Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -19,7 +19,7 @@
 #include "crypto_curve25519.h"
 #include "crypto_ed25519.h"
 #include "crypto_format.h"
-#include "util.h"
+#include "torutil.h"
 #include "util_format.h"
 #include "torlog.h"
 

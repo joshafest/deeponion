@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -67,7 +67,7 @@
  *
  * While we're building circuits, we track a little "guard state" for
  * each circuit. We use this to keep track of whether the circuit is
- * one that we can use as soon as it's done, or whether it's one that
+ * one that we can use as soon as its done, or whether it's one that
  * we should keep around to see if we can do better.  In the latter case,
  * a periodic call to entry_guards_upgrade_waiting_circuits() will
  * eventually upgrade it.
@@ -125,7 +125,7 @@
 #include "control.h"
 #include "directory.h"
 #include "entrynodes.h"
-#include "main.h"
+#include "tormain.h"
 #include "microdesc.h"
 #include "networkstatus.h"
 #include "nodelist.h"
@@ -740,8 +740,7 @@ node_is_possible_guard(const node_t *node)
           node->is_stable &&
           node->is_fast &&
           node->is_valid &&
-          node_is_dir(node) &&
-          !router_digest_is_me(node->identity));
+          node_is_dir(node));
 }
 
 /**
@@ -814,7 +813,7 @@ STATIC entry_guard_t *
 entry_guard_add_to_sample(guard_selection_t *gs,
                           const node_t *node)
 {
-  log_info(LD_GUARD, "Adding %s to the entry guard sample set.",
+  log_info(LD_GUARD, "Adding %s as to the entry guard sample set.",
            node_describe(node));
 
   /* make sure that the guard is not already sampled. */
@@ -967,7 +966,7 @@ entry_guard_learned_bridge_identity(const tor_addr_port_t *addrport,
  * violate it.
  */
 STATIC int
-num_reachable_filtered_guards(const guard_selection_t *gs,
+num_reachable_filtered_guards(guard_selection_t *gs,
                               const entry_guard_restriction_t *rst)
 {
   int n_reachable_filtered_guards = 0;
@@ -1461,94 +1460,6 @@ guard_in_node_family(const entry_guard_t *guard, const node_t *node)
   }
 }
 
-/* Allocate and return a new exit guard restriction (where <b>exit_id</b> is of
- * size DIGEST_LEN) */
-STATIC entry_guard_restriction_t *
-guard_create_exit_restriction(const uint8_t *exit_id)
-{
-  entry_guard_restriction_t *rst = NULL;
-  rst = tor_malloc_zero(sizeof(entry_guard_restriction_t));
-  rst->type = RST_EXIT_NODE;
-  memcpy(rst->exclude_id, exit_id, DIGEST_LEN);
-  return rst;
-}
-
-/** If we have fewer than this many possible usable guards, don't set
- * MD-availability-based restrictions: we might blacklist all of them. */
-#define MIN_GUARDS_FOR_MD_RESTRICTION 10
-
-/** Return true if we should set md dirserver restrictions. We might not want
- *  to set those if our guard options are too restricted, since we don't want
- *  to blacklist all of them. */
-static int
-should_set_md_dirserver_restriction(void)
-{
-  const guard_selection_t *gs = get_guard_selection_info();
-  int num_usable_guards = num_reachable_filtered_guards(gs, NULL);
-
-  /* Don't set restriction if too few reachable filtered guards. */
-  if (num_usable_guards < MIN_GUARDS_FOR_MD_RESTRICTION) {
-    log_info(LD_GUARD, "Not setting md restriction: only %d"
-             " usable guards.", num_usable_guards);
-    return 0;
-  }
-
-  /* We have enough usable guards: set MD restriction */
-  return 1;
-}
-
-/** Allocate and return an outdated md guard restriction. Return NULL if no
- *  such restriction is needed. */
-STATIC entry_guard_restriction_t *
-guard_create_dirserver_md_restriction(void)
-{
-  entry_guard_restriction_t *rst = NULL;
-
-  if (!should_set_md_dirserver_restriction()) {
-    log_debug(LD_GUARD, "Not setting md restriction: too few "
-              "filtered guards.");
-    return NULL;
-  }
-
-  rst = tor_malloc_zero(sizeof(entry_guard_restriction_t));
-  rst->type = RST_OUTDATED_MD_DIRSERVER;
-
-  return rst;
-}
-
-/* Return True if <b>guard</b> obeys the exit restriction <b>rst</b>. */
-static int
-guard_obeys_exit_restriction(const entry_guard_t *guard,
-                             const entry_guard_restriction_t *rst)
-{
-  tor_assert(rst->type == RST_EXIT_NODE);
-
-  // Exclude the exit ID and all of its family.
-  const node_t *node = node_get_by_id((const char*)rst->exclude_id);
-  if (node && guard_in_node_family(guard, node))
-    return 0;
-
-  return tor_memneq(guard->identity, rst->exclude_id, DIGEST_LEN);
-}
-
-/** Return True if <b>guard</b> should be used as a dirserver for fetching
- *  microdescriptors. */
-static int
-guard_obeys_md_dirserver_restriction(const entry_guard_t *guard)
-{
-  /* If this guard is an outdated dirserver, don't use it. */
-  if (microdesc_relay_is_outdated_dirserver(guard->identity)) {
-    log_info(LD_GENERAL, "Skipping %s dirserver: outdated",
-             hex_str(guard->identity, DIGEST_LEN));
-    return 0;
-  }
-
-  log_debug(LD_GENERAL, "%s dirserver obeys md restrictions",
-            hex_str(guard->identity, DIGEST_LEN));
-
-  return 1;
-}
-
 /**
  * Return true iff <b>guard</b> obeys the restrictions defined in <b>rst</b>.
  * (If <b>rst</b> is NULL, there are no restrictions.)
@@ -1561,14 +1472,13 @@ entry_guard_obeys_restriction(const entry_guard_t *guard,
   if (! rst)
     return 1; // No restriction?  No problem.
 
-  if (rst->type == RST_EXIT_NODE) {
-    return guard_obeys_exit_restriction(guard, rst);
-  } else if (rst->type == RST_OUTDATED_MD_DIRSERVER) {
-    return guard_obeys_md_dirserver_restriction(guard);
-  }
+  // Only one kind of restriction exists right now: excluding an exit
+  // ID and all of its family.
+  const node_t *node = node_get_by_id((const char*)rst->exclude_id);
+  if (node && guard_in_node_family(guard, node))
+    return 0;
 
-  tor_assert_nonfatal_unreached();
-  return 0;
+  return tor_memneq(guard->identity, rst->exclude_id, DIGEST_LEN);
 }
 
 /**
@@ -1841,7 +1751,7 @@ entry_guards_update_primary(guard_selection_t *gs)
                    bool_eq(guard->is_primary,
                            smartlist_contains(new_primary_guards, guard)));
   });
-#endif /* 1 */
+#endif
 
   int any_change = 0;
   if (smartlist_len(gs->primary_entry_guards) !=
@@ -2195,7 +2105,7 @@ entry_guard_has_higher_priority(entry_guard_t *a, entry_guard_t *b)
 }
 
 /** Release all storage held in <b>restriction</b> */
-STATIC void
+static void
 entry_guard_restriction_free(entry_guard_restriction_t *rst)
 {
   tor_free(rst);
@@ -2212,23 +2122,6 @@ circuit_guard_state_free(circuit_guard_state_t *state)
   entry_guard_restriction_free(state->restrictions);
   entry_guard_handle_free(state->guard);
   tor_free(state);
-}
-
-/** Allocate and return a new circuit_guard_state_t to track the result
- * of using <b>guard</b> for a given operation. */
-static circuit_guard_state_t *
-circuit_guard_state_new(entry_guard_t *guard, unsigned state,
-                        entry_guard_restriction_t *rst)
-{
-  circuit_guard_state_t *result;
-
-  result = tor_malloc_zero(sizeof(circuit_guard_state_t));
-  result->guard = entry_guard_handle_new(guard);
-  result->state = state;
-  result->state_set_at = approx_time();
-  result->restrictions = rst;
-
-  return result;
 }
 
 /**
@@ -2269,7 +2162,11 @@ entry_guard_pick_for_circuit(guard_selection_t *gs,
     goto fail;
 
   *chosen_node_out = node;
-  *guard_state_out = circuit_guard_state_new(guard, state, rst);
+  *guard_state_out = tor_malloc_zero(sizeof(circuit_guard_state_t));
+  (*guard_state_out)->guard = entry_guard_handle_new(guard);
+  (*guard_state_out)->state = state;
+  (*guard_state_out)->state_set_at = approx_time();
+  (*guard_state_out)->restrictions = rst;
 
   return 0;
  fail:
@@ -2475,7 +2372,7 @@ entry_guards_upgrade_waiting_circuits(guard_selection_t *gs,
 
   SMARTLIST_FOREACH_BEGIN(all_circuits, origin_circuit_t *, circ) {
     circuit_guard_state_t *state = origin_circuit_get_guard_state(circ);
-    if (BUG(state == NULL))
+    if BUG((state == NULL))
       continue;
 
     if (state->state == GUARD_CIRC_STATE_WAITING_FOR_BETTER_GUARD) {
@@ -3099,9 +2996,11 @@ get_guard_state_for_bridge_desc_fetch(const char *digest)
   guard->last_tried_to_connect = approx_time();
 
   /* Create the guard state */
-  guard_state = circuit_guard_state_new(guard,
-                                        GUARD_CIRC_STATE_USABLE_ON_COMPLETION,
-                                        NULL);
+  guard_state = tor_malloc_zero(sizeof(circuit_guard_state_t));
+  guard_state->guard = entry_guard_handle_new(guard);
+  guard_state->state = GUARD_CIRC_STATE_USABLE_ON_COMPLETION;
+  guard_state->state_set_at = approx_time();
+  guard_state->restrictions = NULL;
 
   return guard_state;
 }
@@ -3136,33 +3035,19 @@ entry_list_is_constrained(const or_options_t *options)
 }
 
 /** Return the number of bridges that have descriptors that are marked with
- * purpose 'bridge' and are running. If use_maybe_reachable is
- * true, include bridges that might be reachable in the count.
- * Otherwise, if it is false, only include bridges that have recently been
- * found running in the count.
- *
- * We use this function to decide if we're ready to start building
- * circuits through our bridges, or if we need to wait until the
- * directory "server/authority" requests finish. */
-MOCK_IMPL(int,
-num_bridges_usable,(int use_maybe_reachable))
+ * purpose 'bridge' and are running.
+ */
+int
+num_bridges_usable(void)
 {
   int n_options = 0;
 
-  if (BUG(!get_options()->UseBridges)) {
-    return 0;
-  }
+  tor_assert(get_options()->UseBridges);
   guard_selection_t *gs  = get_guard_selection_info();
-  if (BUG(gs->type != GS_TYPE_BRIDGE)) {
-    return 0;
-  }
+  tor_assert(gs->type == GS_TYPE_BRIDGE);
 
   SMARTLIST_FOREACH_BEGIN(gs->sampled_entry_guards, entry_guard_t *, guard) {
-    /* Definitely not usable */
     if (guard->is_reachable == GUARD_REACHABLE_NO)
-      continue;
-    /* If we want to be really sure the bridges will work, skip maybes */
-    if (!use_maybe_reachable && guard->is_reachable == GUARD_REACHABLE_MAYBE)
       continue;
     if (tor_digest_is_zero(guard->identity))
       continue;
@@ -3462,8 +3347,8 @@ guards_choose_guard(cpath_build_state_t *state,
     /* We're building to a targeted exit node, so that node can't be
      * chosen as our guard for this circuit.  Remember that fact in a
      * restriction. */
-    rst = guard_create_exit_restriction(exit_id);
-    tor_assert(rst);
+    rst = tor_malloc_zero(sizeof(entry_guard_restriction_t));
+    memcpy(rst->exclude_id, exit_id, DIGEST_LEN);
   }
   if (entry_guard_pick_for_circuit(get_guard_selection_info(),
                                    GUARD_USAGE_TRAFFIC,
@@ -3515,20 +3400,12 @@ remove_all_entry_guards(void)
 
 /** Helper: pick a directory guard, with whatever algorithm is used. */
 const node_t *
-guards_choose_dirguard(uint8_t dir_purpose,
-                       circuit_guard_state_t **guard_state_out)
+guards_choose_dirguard(circuit_guard_state_t **guard_state_out)
 {
   const node_t *r = NULL;
-  entry_guard_restriction_t *rst = NULL;
-
-  /* If we are fetching microdescs, don't query outdated dirservers. */
-  if (dir_purpose == DIR_PURPOSE_FETCH_MICRODESC) {
-    rst = guard_create_dirserver_md_restriction();
-  }
-
   if (entry_guard_pick_for_circuit(get_guard_selection_info(),
                                    GUARD_USAGE_DIRGUARD,
-                                   rst,
+                                   NULL,
                                    &r,
                                    guard_state_out) < 0) {
     tor_assert(r == NULL);
@@ -3552,20 +3429,15 @@ guards_retry_optimistic(const or_options_t *options)
 }
 
 /**
- * Check if we are missing any crucial dirinfo for the guard subsystem to
- * work. Return NULL if everything went well, otherwise return a newly
- * allocated string with an informative error message. In the latter case, use
- * the genreal descriptor information <b>using_mds</b>, <b>num_present</b> and
- * <b>num_usable</b> to improve the error message. */
-char *
-guard_selection_get_err_str_if_dir_info_missing(guard_selection_t *gs,
-                                        int using_mds,
-                                        int num_present, int num_usable)
+ * Return true iff we know enough directory information to construct
+ * circuits through all of the primary guards we'd currently use.
+ */
+int
+guard_selection_have_enough_dir_info_to_build_circuits(guard_selection_t *gs)
 {
   if (!gs->primary_guards_up_to_date)
     entry_guards_update_primary(gs);
 
-  char *ret_str = NULL;
   int n_missing_descriptors = 0;
   int n_considered = 0;
   int num_primary_to_check;
@@ -3587,30 +3459,16 @@ guard_selection_get_err_str_if_dir_info_missing(guard_selection_t *gs,
       break;
   } SMARTLIST_FOREACH_END(guard);
 
-  /* If we are not missing any descriptors, return NULL. */
-  if (!n_missing_descriptors) {
-    return NULL;
-  }
-
-  /* otherwise return a helpful error string */
-  tor_asprintf(&ret_str, "We're missing descriptors for %d/%d of our "
-               "primary entry guards (total %sdescriptors: %d/%d).",
-               n_missing_descriptors, num_primary_to_check,
-               using_mds?"micro":"", num_present, num_usable);
-
-  return ret_str;
+  return n_missing_descriptors == 0;
 }
 
 /** As guard_selection_have_enough_dir_info_to_build_circuits, but uses
  * the default guard selection. */
-char *
-entry_guards_get_err_str_if_dir_info_missing(int using_mds,
-                                     int num_present, int num_usable)
+int
+entry_guards_have_enough_dir_info_to_build_circuits(void)
 {
-  return guard_selection_get_err_str_if_dir_info_missing(
-                                                 get_guard_selection_info(),
-                                                 using_mds,
-                                                 num_present, num_usable);
+  return guard_selection_have_enough_dir_info_to_build_circuits(
+                                        get_guard_selection_info());
 }
 
 /** Free one guard selection context */

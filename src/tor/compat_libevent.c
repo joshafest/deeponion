@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2017, The Tor Project, Inc. */
+/* Copyright (c) 2009-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -7,13 +7,13 @@
  */
 
 #include "orconfig.h"
-#include "compat.h"
+#include "torcompat.h"
 #define COMPAT_LIBEVENT_PRIVATE
 #include "compat_libevent.h"
 
 #include "crypto.h"
 
-#include "util.h"
+#include "torutil.h"
 #include "torlog.h"
 
 #include <event2/event.h>
@@ -88,8 +88,8 @@ static struct event_base *the_event_base = NULL;
   (__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ < 1040)
 #else
 #define MACOSX_KQUEUE_IS_BROKEN 0
-#endif /* defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) */
-#endif /* defined(__APPLE__) */
+#endif
+#endif
 
 /** Initialize the Libevent library and set up the event base. */
 void
@@ -237,9 +237,8 @@ tor_init_libevent_rng(void)
   return rv;
 }
 
-#if defined(LIBEVENT_VERSION_NUMBER) &&         \
-  LIBEVENT_VERSION_NUMBER >= V(2,1,1) &&        \
-  !defined(TOR_UNIT_TESTS)
+#if defined(LIBEVENT_VERSION_NUMBER) && LIBEVENT_VERSION_NUMBER >= V(2,1,1) \
+  && !defined(TOR_UNIT_TESTS)
 void
 tor_gettimeofday_cached(struct timeval *tv)
 {
@@ -250,7 +249,7 @@ tor_gettimeofday_cache_clear(void)
 {
   event_base_update_cache_time(the_event_base);
 }
-#else /* !(defined(LIBEVENT_VERSION_NUMBER) &&         ...) */
+#else
 /** Cache the current hi-res time; the cache gets reset when libevent
  * calls us. */
 static struct timeval cached_time_hires = {0, 0};
@@ -281,15 +280,6 @@ tor_gettimeofday_cache_set(const struct timeval *tv)
   tor_assert(tv);
   memcpy(&cached_time_hires, tv, sizeof(*tv));
 }
-
-/** For testing: called post-fork to make libevent reinitialize
- * kernel structures. */
-void
-tor_libevent_postfork(void)
-{
-  int r = event_reinit(tor_libevent_get_base());
-  tor_assert(r == 0);
-}
-#endif /* defined(TOR_UNIT_TESTS) */
-#endif /* defined(LIBEVENT_VERSION_NUMBER) &&         ... */
+#endif
+#endif
 

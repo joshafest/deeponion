@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017, The Tor Project, Inc. */
+/* Copyright (c) 2013-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -14,8 +14,8 @@
  */
 
 #include "orconfig.h"
-#include "compat.h"
-#include "util.h"
+#include "torcompat.h"
+#include "torutil.h"
 #include "torlog.h"
 
 #ifdef HAVE_EXECINFO_H
@@ -37,7 +37,7 @@
 #include <sys/ucontext.h>
 #elif defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>
-#endif /* defined(HAVE_CYGWIN_SIGNAL_H) || ... */
+#endif
 
 #define EXPOSE_CLEAN_BACKTRACE
 #include "backtrace.h"
@@ -81,16 +81,16 @@ clean_backtrace(void **stack, size_t depth, const ucontext_t *ctx)
   const size_t n = 2;
 #else
   const size_t n = 1;
-#endif /* defined(__linux__) || ... */
+#endif
   if (depth <= n)
     return;
 
   stack[n] = (void*) ctx->PC_FROM_UCONTEXT;
-#else /* !(defined(PC_FROM_UCONTEXT)) */
+#else
   (void) depth;
   (void) ctx;
   (void) stack;
-#endif /* defined(PC_FROM_UCONTEXT) */
+#endif
 }
 
 /** Log a message <b>msg</b> at <b>severity</b> in <b>domain</b>, and follow
@@ -202,7 +202,7 @@ remove_bt_handler(void)
 {
   tor_mutex_uninit(&cb_buf_mutex);
 }
-#endif /* defined(USE_BACKTRACE) */
+#endif
 
 #ifdef NO_BACKTRACE_IMPL
 void
@@ -221,7 +221,7 @@ static void
 remove_bt_handler(void)
 {
 }
-#endif /* defined(NO_BACKTRACE_IMPL) */
+#endif
 
 /** Set up code to handle generating error messages on crashes. */
 int

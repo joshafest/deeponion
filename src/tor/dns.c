@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -57,7 +57,7 @@
 #include "connection_edge.h"
 #include "control.h"
 #include "dns.h"
-#include "main.h"
+#include "tormain.h"
 #include "policies.h"
 #include "relay.h"
 #include "router.h"
@@ -102,7 +102,7 @@ static void assert_cache_ok_(void);
 #define assert_cache_ok() assert_cache_ok_()
 #else
 #define assert_cache_ok() STMT_NIL
-#endif /* defined(DEBUG_DNS_CACHE) */
+#endif
 static void assert_resolve_ok(cached_resolve_t *resolve);
 
 /** Hash table of cached_resolve objects. */
@@ -160,9 +160,8 @@ evdns_log_cb(int warn, const char *msg)
   }
   if (!strcmpstart(msg, "Nameserver ") && (cp=strstr(msg, " has failed: "))) {
     char *ns = tor_strndup(msg+11, cp-(msg+11));
-    const char *colon = strchr(cp, ':');
-    tor_assert(colon);
-    const char *err = colon+2;
+    const char *err = strchr(cp, ':')+2;
+    tor_assert(err);
     /* Don't warn about a single failed nameserver; we'll warn with 'all
      * nameservers have failed' if we're completely out of nameservers;
      * otherwise, the situation is tolerable. */
@@ -182,18 +181,6 @@ evdns_log_cb(int warn, const char *msg)
   } else if (!strcmp(msg, "All nameservers have failed")) {
     control_event_server_status(LOG_WARN, "NAMESERVER_ALL_DOWN");
     all_down = 1;
-  } else if (!strcmpstart(msg, "Address mismatch on received DNS")) {
-    static ratelim_t mismatch_limit = RATELIM_INIT(3600);
-    const char *src = strstr(msg, " Apparent source");
-    if (!src || get_options()->SafeLogging) {
-      src = "";
-    }
-    log_fn_ratelim(&mismatch_limit, severity, LD_EXIT,
-                   "eventdns: Received a DNS packet from "
-                   "an IP address to which we did not send a request. This "
-                   "could be a DNS spoofing attempt, or some kind of "
-                   "misconfiguration.%s", src);
-    return;
   }
   tor_log(severity, LD_EXIT, "eventdns: %s", msg);
 }
@@ -378,7 +365,7 @@ set_expiry(cached_resolve_t *resolve, time_t expires)
   resolve->expire = expires;
   smartlist_pqueue_add(cached_resolve_pqueue,
                        compare_cached_resolves_by_expiry_,
-                       offsetof(cached_resolve_t, minheap_idx),
+                       STRUCT_OFFSET(cached_resolve_t, minheap_idx),
                        resolve);
 }
 
@@ -425,7 +412,7 @@ purge_expired_resolves(time_t now)
       break;
     smartlist_pqueue_pop(cached_resolve_pqueue,
                          compare_cached_resolves_by_expiry_,
-                         offsetof(cached_resolve_t, minheap_idx));
+                         STRUCT_OFFSET(cached_resolve_t, minheap_idx));
 
     if (resolve->state == CACHE_STATE_PENDING) {
       log_debug(LD_EXIT,
@@ -535,7 +522,6 @@ send_resolved_cell,(edge_connection_t *conn, uint8_t answer_type,
         answer_type = RESOLVED_TYPE_ERROR;
         /* fall through. */
       }
-      /* Falls through. */
     case RESOLVED_TYPE_ERROR_TRANSIENT:
     case RESOLVED_TYPE_ERROR:
       {
@@ -961,14 +947,14 @@ assert_connection_edge_not_dns_pending(edge_connection_t *conn)
   for (pend = resolve->pending_connections; pend; pend = pend->next) {
     tor_assert(pend->conn != conn);
   }
-#else /* !(1) */
+#else
   cached_resolve_t **resolve;
   HT_FOREACH(resolve, cache_map, &cache_root) {
     for (pend = (*resolve)->pending_connections; pend; pend = pend->next) {
       tor_assert(pend->conn != conn);
     }
   }
-#endif /* 1 */
+#endif
 }
 
 /** Log an error and abort if any connection waiting for a DNS resolve is
@@ -1396,7 +1382,7 @@ configure_nameservers(int force)
       evdns_base_load_hosts(the_evdns_base,
           sandbox_intern_string("/etc/hosts"));
     }
-#endif /* defined(DNS_OPTION_HOSTSFILE) && defined(USE_LIBSECCOMP) */
+#endif
     log_info(LD_EXIT, "Parsing resolver configuration in '%s'", conf_fname);
     if ((r = evdns_base_resolv_conf_parse(the_evdns_base, flags,
         sandbox_intern_string(conf_fname)))) {
@@ -1434,34 +1420,17 @@ configure_nameservers(int force)
     tor_free(resolv_conf_fname);
     resolv_conf_mtime = 0;
   }
-#endif /* defined(_WIN32) */
+#endif
 
 #define SET(k,v)  evdns_base_set_option(the_evdns_base, (k), (v))
 
-  // If we only have one nameserver, it does not make sense to back off
-  // from it for a timeout. Unfortunately, the value for max-timeouts is
-  // currently clamped by libevent to 255, but it does not hurt to set
-  // it higher in case libevent gets a patch for this.
-  // Reducing attempts in the case of just one name server too, because
-  // it is very likely to be a local one where a network connectivity
-  // issue should not cause an attempt to fail.
   if (evdns_base_count_nameservers(the_evdns_base) == 1) {
-    SET("max-timeouts:", "1000000");
-    SET("attempts:", "1");
+    SET("max-timeouts:", "16");
+    SET("timeout:", "10");
   } else {
     SET("max-timeouts:", "3");
+    SET("timeout:", "5");
   }
-
-  // Elongate the queue of maximum inflight dns requests, so if a bunch
-  // time out at the resolver (happens commonly with unbound) we won't
-  // stall every other DNS request. This potentially means some wasted
-  // CPU as there's a walk over a linear queue involved, but this is a
-  // much better tradeoff compared to just failing DNS requests because
-  // of a full queue.
-  SET("max-inflight:", "8192");
-
-  // Time out after 5 seconds if no reply.
-  SET("timeout:", "5");
 
   if (options->ServerDNSRandomizeCase)
     SET("randomize-case:", "1");
@@ -1578,11 +1547,10 @@ evdns_callback(int result, char type, int count, int ttl, void *addresses,
                 escaped_safe_str(hostname));
       tor_free(escaped_address);
     } else if (count) {
-      log_info(LD_EXIT, "eventdns returned only unrecognized answer types "
-               " for %s.",
+      log_warn(LD_EXIT, "eventdns returned only non-IPv4 answers for %s.",
                escaped_safe_str(string_address));
     } else {
-      log_info(LD_EXIT, "eventdns returned no addresses or error for %s.",
+      log_warn(LD_BUG, "eventdns returned no addresses or error for %s!",
                escaped_safe_str(string_address));
     }
   }
@@ -1958,7 +1926,7 @@ dns_launch_wildcard_checks(void)
       launch_wildcard_check(8, 16, ipv6, ".com");
       launch_wildcard_check(8, 16, ipv6, ".org");
       launch_wildcard_check(8, 16, ipv6, ".net");
-    }
+  }
   }
 }
 
@@ -2051,7 +2019,7 @@ assert_resolve_ok(cached_resolve_t *resolve)
       tor_assert(!resolve->hostname);
     else
       tor_assert(!resolve->result_ipv4.addr_ipv4);
-#endif /* 0 */
+#endif
     /*XXXXX ADD MORE */
   }
 }
@@ -2101,7 +2069,7 @@ assert_cache_ok_(void)
 
   smartlist_pqueue_assert_ok(cached_resolve_pqueue,
                              compare_cached_resolves_by_expiry_,
-                             offsetof(cached_resolve_t, minheap_idx));
+                             STRUCT_OFFSET(cached_resolve_t, minheap_idx));
 
   SMARTLIST_FOREACH(cached_resolve_pqueue, cached_resolve_t *, res,
     {
@@ -2115,10 +2083,10 @@ assert_cache_ok_(void)
     });
 }
 
-#endif /* defined(DEBUG_DNS_CACHE) */
+#endif
 
-cached_resolve_t *
-dns_get_cache_entry(cached_resolve_t *query)
+cached_resolve_t
+*dns_get_cache_entry(cached_resolve_t *query)
 {
   return HT_FIND(cache_map, &cache_root, query);
 }

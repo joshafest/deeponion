@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2017, The Tor Project, Inc. */
+/* Copyright (c) 2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -97,7 +97,7 @@
 #include "router.h"
 #include "routerlist.h"
 #include "shared_random_state.h"
-#include "util.h"
+#include "torutil.h"
 
 /* String prefix of shared random values in votes/consensuses. */
 static const char previous_srv_str[] = "shared-rand-previous-value";
@@ -230,7 +230,9 @@ commit_decode(const char *encoded, sr_commit_t *commit)
 {
   int decoded_len = 0;
   size_t offset = 0;
-  char b64_decoded[SR_COMMIT_LEN];
+  /* XXX: Needs two extra bytes for the base64 decode calculation matches
+   * the binary length once decoded. #17868. */
+  char b64_decoded[SR_COMMIT_LEN + 2];
 
   tor_assert(encoded);
   tor_assert(commit);
@@ -282,7 +284,9 @@ STATIC int
 reveal_decode(const char *encoded, sr_commit_t *commit)
 {
   int decoded_len = 0;
-  char b64_decoded[SR_REVEAL_LEN];
+  /* XXX: Needs two extra bytes for the base64 decode calculation matches
+   * the binary length once decoded. #17868. */
+  char b64_decoded[SR_REVEAL_LEN + 2];
 
   tor_assert(encoded);
   tor_assert(commit);
@@ -1333,7 +1337,13 @@ sr_act_post_consensus(const networkstatus_t *consensus)
   }
 
   /* Prepare our state so that it's ready for the next voting period. */
-  sr_state_update(dirvote_get_next_valid_after_time());
+  {
+    voting_schedule_t *voting_schedule =
+      get_voting_schedule(options,time(NULL), LOG_NOTICE);
+    time_t interval_starts = voting_schedule->interval_starts;
+    sr_state_update(interval_starts);
+    voting_schedule_free(voting_schedule);
+  }
 }
 
 /* Initialize shared random subsystem. This MUST be called early in the boot
@@ -1384,52 +1394,6 @@ sr_get_previous_for_control(void)
   return srv_str;
 }
 
-/* Return current shared random value from the latest consensus. Caller can
- * NOT keep a reference to the returned pointer. Return NULL if none. */
-const sr_srv_t *
-sr_get_current(const networkstatus_t *ns)
-{
-  const networkstatus_t *consensus;
-
-  /* Use provided ns else get a live one */
-  if (ns) {
-    consensus = ns;
-  } else {
-    consensus = networkstatus_get_live_consensus(approx_time());
-  }
-  /* Ideally we would never be asked for an SRV without a live consensus. Make
-   * sure this assumption is correct. */
-  tor_assert_nonfatal(consensus);
-
-  if (consensus) {
-    return consensus->sr_info.current_srv;
-  }
-  return NULL;
-}
-
-/* Return previous shared random value from the latest consensus. Caller can
- * NOT keep a reference to the returned pointer. Return NULL if none. */
-const sr_srv_t *
-sr_get_previous(const networkstatus_t *ns)
-{
-  const networkstatus_t *consensus;
-
-  /* Use provided ns else get a live one */
-  if (ns) {
-    consensus = ns;
-  } else {
-    consensus = networkstatus_get_live_consensus(approx_time());
-  }
-  /* Ideally we would never be asked for an SRV without a live consensus. Make
-   * sure this assumption is correct. */
-  tor_assert_nonfatal(consensus);
-
-  if (consensus) {
-    return consensus->sr_info.previous_srv;
-  }
-  return NULL;
-}
-
 #ifdef TOR_UNIT_TESTS
 
 /* Set the global value of number of SRV agreements so the test can play
@@ -1441,5 +1405,5 @@ set_num_srv_agreements(int32_t value)
   num_srv_agreements_from_vote = value;
 }
 
-#endif /* defined(TOR_UNIT_TESTS) */
+#endif /* TOR_UNIT_TESTS */
 

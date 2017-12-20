@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2017, The Tor Project, Inc. */
+/* Copyright (c) 2011-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -9,7 +9,7 @@
 #ifndef TOR_PROCMON_H
 #define TOR_PROCMON_H
 
-#include "compat.h"
+#include "torcompat.h"
 #include "compat_libevent.h"
 
 #include "torlog.h"
@@ -29,5 +29,5 @@ tor_process_monitor_t *tor_process_monitor_new(struct event_base *base,
                                                const char **msg);
 void tor_process_monitor_free(tor_process_monitor_t *procmon);
 
-#endif /* !defined(TOR_PROCMON_H) */
+#endif
 

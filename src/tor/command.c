@@ -1,7 +1,7 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2017, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -128,7 +128,7 @@ command_time_process_cell(cell_t *cell, channel_t *chan, int *time,
   }
   *time += time_passed;
 }
-#endif /* defined(KEEP_TIMING_STATS) */
+#endif
 
 /** Process a <b>cell</b> that was just received on <b>chan</b>. Keep internal
  * statistics about how many of each cell we've processed so far
@@ -165,7 +165,7 @@ command_process_cell(channel_t *chan, cell_t *cell)
     /* remember which second it is, for next time */
     current_second = now;
   }
-#endif /* defined(KEEP_TIMING_STATS) */
+#endif
 
 #ifdef KEEP_TIMING_STATS
 #define PROCESS_CELL(tp, cl, cn) STMT_BEGIN {                   \
@@ -173,9 +173,9 @@ command_process_cell(channel_t *chan, cell_t *cell)
     command_time_process_cell(cl, cn, & tp ## time ,            \
                               command_process_ ## tp ## _cell);  \
   } STMT_END
-#else /* !(defined(KEEP_TIMING_STATS)) */
+#else
 #define PROCESS_CELL(tp, cl, cn) command_process_ ## tp ## _cell(cl, cn)
-#endif /* defined(KEEP_TIMING_STATS) */
+#endif
 
   switch (cell->command) {
     case CELL_CREATE:
@@ -326,19 +326,10 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     return;
   }
 
-  if (connection_or_digest_is_known_relay(chan->identity_digest)) {
-    rep_hist_note_circuit_handshake_requested(create_cell->handshake_type);
-    // Needed for chutney: Sometimes relays aren't in the consensus yet, and
-    // get marked as clients. This resets their channels once they appear.
-    // Probably useful for normal operation wrt relay flapping, too.
-    channel_clear_client(chan);
-  } else {
-    channel_mark_client(chan);
-  }
-
   if (create_cell->handshake_type != ONION_HANDSHAKE_TYPE_FAST) {
     /* hand it off to the cpuworkers, and then return. */
-
+    if (connection_or_digest_is_known_relay(chan->identity_digest))
+      rep_hist_note_circuit_handshake_requested(create_cell->handshake_type);
     if (assign_onionskin_to_cpuworker(circ, create_cell) < 0) {
       log_debug(LD_GENERAL,"Failed to hand off onionskin. Closing.");
       circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_RESOURCELIMIT);
@@ -352,6 +343,10 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     uint8_t rend_circ_nonce[DIGEST_LEN];
     int len;
     created_cell_t created_cell;
+
+    /* Make sure we never try to use the OR connection on which we
+     * received this cell to satisfy an EXTEND request,  */
+    channel_mark_client(chan);
 
     memset(&created_cell, 0, sizeof(created_cell));
     len = onion_skin_server_handshake(ONION_HANDSHAKE_TYPE_FAST,
@@ -371,8 +366,7 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     created_cell.handshake_len = len;
 
     if (onionskin_answer(circ, &created_cell,
-                         (const char *)keys, sizeof(keys),
-                         rend_circ_nonce)<0) {
+                         (const char *)keys, rend_circ_nonce)<0) {
       log_warn(LD_OR,"Failed to reply to CREATE_FAST cell. Closing.");
       circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_INTERNAL);
       return;

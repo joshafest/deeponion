@@ -1,22 +1,10 @@
- /* Copyright (c) 2012-2016, The Tor Project, Inc. */
+ /* Copyright (c) 2012-2013, The Tor Project, Inc. */
  /* See LICENSE for licensing information */
 
-/**
+/*
  * \file replaycache.c
  *
  * \brief Self-scrubbing replay cache for rendservice.c
- *
- * To prevent replay attacks, hidden services need to recognize INTRODUCE2
- * cells that they've already seen, and drop them.  If they didn't, then
- * sending the same INTRODUCE2 cell over and over would force the hidden
- * service to make a huge number of circuits to the same rendezvous
- * point, aiding traffic analysis.
- *
- * (It's not that simple, actually.  We only check for replays in the
- * RSA-encrypted portion of the handshake, since the rest of the handshake is
- * malleable.)
- *
- * This module is used from rendservice.c.
  */
 
 #define REPLAYCACHE_PRIVATE
@@ -35,7 +23,7 @@ replaycache_free(replaycache_t *r)
     return;
   }
 
-  if (r->digests_seen) digest256map_free(r->digests_seen, tor_free_);
+  if (r->digests_seen) digestmap_free(r->digests_seen, tor_free_);
 
   tor_free(r);
 }
@@ -66,7 +54,7 @@ replaycache_new(time_t horizon, time_t interval)
   r->scrub_interval = interval;
   r->scrubbed = 0;
   r->horizon = horizon;
-  r->digests_seen = digest256map_new();
+  r->digests_seen = digestmap_new();
 
  err:
   return r;
@@ -81,7 +69,7 @@ replaycache_add_and_test_internal(
     time_t *elapsed)
 {
   int rv = 0;
-  uint8_t digest[DIGEST256_LEN];
+  char digest[DIGEST_LEN];
   time_t *access_time;
 
   /* sanity check */
@@ -92,10 +80,10 @@ replaycache_add_and_test_internal(
   }
 
   /* compute digest */
-  crypto_digest256((char *)digest, (const char *)data, len, DIGEST_SHA256);
+  crypto_digest(digest, (const char *)data, len);
 
   /* check map */
-  access_time = digest256map_get(r->digests_seen, digest);
+  access_time = digestmap_get(r->digests_seen, digest);
 
   /* seen before? */
   if (access_time != NULL) {
@@ -126,7 +114,7 @@ replaycache_add_and_test_internal(
     /* No, so no hit and update the digest map with the current time */
     access_time = tor_malloc(sizeof(*access_time));
     *access_time = present;
-    digest256map_set(r->digests_seen, digest, access_time);
+    digestmap_set(r->digests_seen, digest, access_time);
   }
 
   /* now scrub the cache if it's time */
@@ -142,8 +130,8 @@ replaycache_add_and_test_internal(
 STATIC void
 replaycache_scrub_if_needed_internal(time_t present, replaycache_t *r)
 {
-  digest256map_iter_t *itr = NULL;
-  const uint8_t *digest;
+  digestmap_iter_t *itr = NULL;
+  const char *digest;
   void *valp;
   time_t *access_time;
 
@@ -161,19 +149,19 @@ replaycache_scrub_if_needed_internal(time_t present, replaycache_t *r)
   if (r->horizon == 0) return;
 
   /* okay, scrub time */
-  itr = digest256map_iter_init(r->digests_seen);
-  while (!digest256map_iter_done(itr)) {
-    digest256map_iter_get(itr, &digest, &valp);
+  itr = digestmap_iter_init(r->digests_seen);
+  while (!digestmap_iter_done(itr)) {
+    digestmap_iter_get(itr, &digest, &valp);
     access_time = (time_t *)valp;
     /* aged out yet? */
     if (*access_time < present - r->horizon) {
       /* Advance the iterator and remove this one */
-      itr = digest256map_iter_next_rmv(r->digests_seen, itr);
+      itr = digestmap_iter_next_rmv(r->digests_seen, itr);
       /* Free the value removed */
       tor_free(access_time);
     } else {
       /* Just advance the iterator */
-      itr = digest256map_iter_next(r->digests_seen, itr);
+      itr = digestmap_iter_next(r->digests_seen, itr);
     }
   }
 

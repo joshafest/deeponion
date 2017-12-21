@@ -89,7 +89,7 @@ AddressBookPage::AddressBookPage(Mode mode, Tabs tab, QWidget *parent) :
     connect(copyLabelAction, SIGNAL(triggered()), this, SLOT(onCopyLabelAction()));
     connect(editAction, SIGNAL(triggered()), this, SLOT(onEditAction()));
     connect(deleteAction, SIGNAL(triggered()), this, SLOT(on_deleteButton_clicked()));
-    connect(showQRCodeAction, SIGNAL(triggered()), this, SLOT(on_showQRCode_clicked()));
+    //connect(showQRCodeAction, SIGNAL(triggered()), this, SLOT(on_showQRCode_clicked()));
     connect(signMessageAction, SIGNAL(triggered()), this, SLOT(on_signMessage_clicked()));
     connect(verifyMessageAction, SIGNAL(triggered()), this, SLOT(on_verifyMessage_clicked()));
 
@@ -335,24 +335,24 @@ void AddressBookPage::exportClicked()
     }
 }
 
-void AddressBookPage::on_showQRCode_clicked()
-{
-#ifdef USE_QRCODE
-    QTableView *table = ui->tableView;
-    QModelIndexList indexes = table->selectionModel()->selectedRows(AddressTableModel::Address);
+//void AddressBookPage::on_showQRCode_clicked()
+//{
+//#ifdef USE_QRCODE
+//    QTableView *table = ui->tableView;
+//    QModelIndexList indexes = table->selectionModel()->selectedRows(AddressTableModel::Address);
 
-    foreach (QModelIndex index, indexes)
-    {
-        QString address = index.data().toString(), label = index.sibling(index.row(), 0).data(Qt::EditRole).toString();
+//    foreach (QModelIndex index, indexes)
+//    {
+//        QString address = index.data().toString(), label = index.sibling(index.row(), 0).data(Qt::EditRole).toString();
 
-        QRCodeDialog *dialog = new QRCodeDialog(address, label, tab == ReceivingTab, this);
-        if(optionsModel)
-            dialog->setModel(optionsModel);
-        dialog->setAttribute(Qt::WA_DeleteOnClose);
-        dialog->show();
-    }
-#endif
-}
+//        QRCodeDialog *dialog = new QRCodeDialog(address, label, tab == ReceivingTab, this);
+//        if(optionsModel)
+//            dialog->setModel(optionsModel);
+//        dialog->setAttribute(Qt::WA_DeleteOnClose);
+//        dialog->show();
+//    }
+//#endif
+//}
 
 void AddressBookPage::contextualMenu(const QPoint &point)
 {

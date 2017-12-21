@@ -1,11 +1,11 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2016, The Tor Project, Inc. */
+ * Copyright (c) 2007-2013, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
- * \file ntmain.h
+ * \file nttormain.h
  * \brief Header file for ntmain.c.
  **/
 
@@ -13,7 +13,9 @@
 #define TOR_NTMAIN_H
 
 #ifdef _WIN32
+#if !defined (WINCE)
 #define NT_SERVICE
+#endif
 #endif
 
 #ifdef NT_SERVICE

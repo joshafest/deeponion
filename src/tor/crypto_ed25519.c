@@ -29,8 +29,8 @@
 #include "torlog.h"
 #include "torutil.h"
 
-#include "ed25519/ref10/ed25519_ref10.h"
-#include "ed25519/donna/ed25519_donna_tor.h"
+#include "ed25519_ref10.h"
+#include "ed25519_donna_tor.h"
 
 #include <openssl/sha.h>
 

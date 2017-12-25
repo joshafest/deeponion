@@ -1,8 +1,8 @@
 /* Copyright (c) 2009-2010 Satoshi Nakamoto
    Copyright (c) 2009-2012 The Bitcoin developers
-   Copyright (c) 2013-2014 The StealthCoin/StealthSend Developers 
-   Copyright (c) 2014, DeepOnion Developers
-   See LICENSE for licensing information */
+   Copyright (c) 2013-2014 The StealthCoin/StealthSend Developers */
+/* Copyright (c) 2014, BritCoin Developers */
+/* See LICENSE for licensing information */
 
 #include "anonymize.h"
 #include "util.h"
@@ -35,26 +35,17 @@ char const* anonymize_service_directory(
     );
 }
 
-int check_interrupted(
-) {
-    return boost::this_thread::interruption_requested(
-    ) ? 1 : 0;
+int check_interrupted() {
+    return boost::this_thread::interruption_requested() ? 1 : 0;
 }
 
 static boost::mutex initializing;
+static std::auto_ptr<boost::unique_lock<boost::mutex>> uninitialized(new boost::unique_lock<boost::mutex>(initializing));
 
-static std::auto_ptr<boost::unique_lock<boost::mutex> > uninitialized(
-    new boost::unique_lock<boost::mutex>(
-        initializing
-    )
-);
-
-void set_initialized(
-) {
+void set_initialized() {
     uninitialized.reset();
 }
 
-void wait_initialized(
-) {
+void wait_initialized() {
     boost::unique_lock<boost::mutex> checking(initializing);
 }

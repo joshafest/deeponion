@@ -1,4 +1,4 @@
-/* Copyright (c) 2014, DeepOnion Developers */
+/* Copyright (c) 2014, BritCoin Developers */
 /* See LICENSE for licensing information */
 
 /**

@@ -27,7 +27,7 @@
 #include "torutil.h"
 #include "torlog.h"
 
-#include "ed25519_donna_tor.h"
+#include "ed25519/donna/ed25519_donna_tor.h"
 
 /* ==============================
    Part 1: wrap a suitable curve25519 implementation as curve25519_impl

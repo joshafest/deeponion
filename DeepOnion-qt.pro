@@ -168,8 +168,11 @@ SOURCES += \
     src/simd.c \
     src/skein.c \
     src/fugue.c \
-    src/hamsi.c \
-    src/tor/anonymize.cpp \
+    src/hamsi.c 
+	
+	
+### tor sources
+SOURCES += src/tor/anonymize.cpp \
     src/tor/address.c \
     src/tor/addressmap.c \
     src/tor/aes.c \
@@ -185,31 +188,28 @@ SOURCES += \
     src/tor/circpathbias.c \
     src/tor/circuitbuild.c \
     src/tor/circuitlist.c \
-    src/tor/circuitmux_ewma.c \
     src/tor/circuitmux.c \
+    src/tor/circuitmux_ewma.c \
     src/tor/circuitstats.c \
     src/tor/circuituse.c \
     src/tor/command.c \
     src/tor/compat_libevent.c \
-    src/tor/compat_pthreads.c \
     src/tor/compat_threads.c \
     src/tor/compat_time.c \
-    src/tor/compat_winthreads.c \
-    src/tor/config_codedigest.c \
     src/tor/config.c \
     src/tor/confparse.c \
+    src/tor/connection.c \
     src/tor/connection_edge.c \
     src/tor/connection_or.c \
-    src/tor/connection.c \
     src/tor/container.c \
     src/tor/control.c \
-    src/tor/cpuworker.c \
+    src/tor/crypto.c \
     src/tor/crypto_curve25519.c \
     src/tor/crypto_ed25519.c \
     src/tor/crypto_format.c \
     src/tor/crypto_pwbox.c \
     src/tor/crypto_s2k.c \
-    src/tor/crypto.c \
+    src/tor/cpuworker.c \
     src/tor/csiphash.c \
     src/tor/curve25519-donna.c \
     src/tor/di_ops.c \
@@ -223,41 +223,41 @@ SOURCES += \
     src/tor/ed25519_tor.c \
     src/tor/entrynodes.c \
     src/tor/ext_orport.c \
-    src/tor/fe_0.c \
-    src/tor/fe_1.c \
-    src/tor/fe_add.c \
-    src/tor/fe_cmov.c \
     src/tor/fe_copy.c \
+    src/tor/fe_cmov.c \
+    src/tor/fe_isnegative.c \
+    src/tor/fe_sq.c \
+    src/tor/fe_pow22523.c \
+    src/tor/fe_isnonzero.c \
+    src/tor/fe_neg.c \
     src/tor/fe_frombytes.c \
     src/tor/fe_invert.c \
-    src/tor/fe_isnegative.c \
-    src/tor/fe_isnonzero.c \
-    src/tor/fe_mul.c \
-    src/tor/fe_neg.c \
-    src/tor/fe_pow22523.c \
-    src/tor/fe_sq.c \
-    src/tor/fe_sq2.c \
     src/tor/fe_sub.c \
+    src/tor/fe_add.c \
+    src/tor/fe_1.c \
+    src/tor/fe_mul.c \
     src/tor/fe_tobytes.c \
+    src/tor/fe_0.c \
+    src/tor/fe_sq2.c \
     src/tor/fp_pair.c \
-    src/tor/ge_add.c \
-    src/tor/ge_double_scalarmult.c \
+    src/tor/ge_scalarmult_base.c \
+    src/tor/ge_p3_tobytes.c \
     src/tor/ge_frombytes.c \
-    src/tor/ge_madd.c \
-    src/tor/ge_msub.c \
-    src/tor/ge_p1p1_to_p2.c \
-    src/tor/ge_p1p1_to_p3.c \
-    src/tor/ge_p2_0.c \
-    src/tor/ge_p2_dbl.c \
-    src/tor/ge_p3_0.c \
-    src/tor/ge_p3_dbl.c \
+    src/tor/ge_double_scalarmult.c \
+    src/tor/ge_tobytes.c \
     src/tor/ge_p3_to_cached.c \
     src/tor/ge_p3_to_p2.c \
-    src/tor/ge_p3_tobytes.c \
-    src/tor/ge_precomp_0.c \
-    src/tor/ge_scalarmult_base.c \
+    src/tor/ge_p3_dbl.c \
+    src/tor/ge_p3_0.c \
+    src/tor/ge_p1p1_to_p2.c \
+    src/tor/ge_p1p1_to_p3.c \
+    src/tor/ge_add.c \
+    src/tor/ge_p2_0.c \
+    src/tor/ge_p2_dbl.c \
+    src/tor/ge_madd.c \
+    src/tor/ge_msub.c \
     src/tor/ge_sub.c \
-    src/tor/ge_tobytes.c \
+    src/tor/ge_precomp_0.c \
     src/tor/geoip.c \
     src/tor/hibernate.c \
     src/tor/hs_cache.c \
@@ -266,30 +266,29 @@ SOURCES += \
     src/tor/hs_descriptor.c \
     src/tor/hs_intropoint.c \
     src/tor/hs_service.c \
-    src/tor/keccak-tiny-unrolled.c \
     src/tor/keyconv.c \
     src/tor/keypair.c \
     src/tor/keypin.c \
+    src/tor/keccak-tiny-unrolled.c \
     src/tor/link_handshake.c \
     src/tor/log.c \
+    src/tor/tormain.c \
     src/tor/memarea.c \
     src/tor/microdesc.c \
     src/tor/networkstatus.c \
     src/tor/nodelist.c \
     src/tor/ntmain.c \
+    src/tor/onion.c \
     src/tor/onion_fast.c \
     src/tor/onion_ntor.c \
     src/tor/onion_tap.c \
-    src/tor/onion.c \
     src/tor/open.c \
     src/tor/parsecommon.c \
     src/tor/periodic.c \
     src/tor/policies.c \
     src/tor/procmon.c \
     src/tor/protover.c \
-    src/tor/pubsub.c \
     src/tor/pwbox.c \
-    src/tor/readpassphrase.c \
     src/tor/reasons.c \
     src/tor/relay.c \
     src/tor/rendcache.c \
@@ -305,32 +304,33 @@ SOURCES += \
     src/tor/routerparse.c \
     src/tor/routerset.c \
     src/tor/sandbox.c \
-    src/tor/sc_muladd.c \
     src/tor/sc_reduce.c \
+    src/tor/sc_muladd.c \
     src/tor/scheduler.c \
-    src/tor/shared_random_state.c \
     src/tor/shared_random.c \
+    src/tor/shared_random_state.c \
     src/tor/sign.c \
     src/tor/statefile.c \
     src/tor/status.c \
-    src/tor/strlcat.c \
-    src/tor/strlcpy.c \
-    src/tor/tinytest.c \
-    src/tor/tor_main.c \
     src/tor/torcert.c \
     src/tor/torcompat.c \
+    src/tor/tor_main.c \
     src/tor/torgzip.c \
-    src/tor/tormain.c \
     src/tor/tortls.c \
     src/tor/torutil.c \
     src/tor/transports.c \
     src/tor/trunnel.c \
     src/tor/util_bug.c \
-    src/tor/util_codedigest.c \
     src/tor/util_format.c \
     src/tor/util_process.c \
-    src/tor/workqueue.c
-    
+    src/tor/workqueue.c \
+
+win32 {
+    SOURCES += src/tor/compat_winthreads.c
+} else {
+    SOURCES += src/tor/compat_pthreads.c \
+        src/tor/readpassphrase.c
+}
 NO_LEVELDB=1
 !contains(NO_LEVELDB, 1) {
     !win32 {
@@ -493,181 +493,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/threadsafety.h \
     src/txdb-leveldb.h \
     src/lz4/lz4.h \
-    src/xxhash/xxhash.h \
-    src/tor/address.h \
-    src/tor/addressmap.h \
-    src/tor/aes.h \
-    src/tor/anonymize.h \
-    src/tor/backtrace.h \
-    src/tor/base.h \
-    src/tor/base2.h \
-    src/tor/bridges.h \
-    src/tor/buffers.h \
-    src/tor/cell_common.h \
-    src/tor/cell_establish_intro.h \
-    src/tor/cell_introduce1.h \
-    src/tor/channel.h \
-    src/tor/channeltls.h \
-    src/tor/circpathbias.h \
-    src/tor/circuitbuild.h \
-    src/tor/circuitlist.h \
-    src/tor/circuitmux_ewma.h \
-    src/tor/circuitmux.h \
-    src/tor/circuitstats.h \
-    src/tor/circuituse.h \
-    src/tor/command.h \
-    src/tor/compat_libevent.h \
-    src/tor/compat_openssl.h \
-    src/tor/compat_threads.h \
-    src/tor/compat_time.h \
-    src/tor/config.h \
-    src/tor/confparse.h \
-    src/tor/connection_edge.h \
-    src/tor/connection_or.h \
-    src/tor/connection.h \
-    src/tor/container.h \
-    src/tor/control.h \
-    src/tor/cpuworker.h \
-    src/tor/crypto_curve25519.h \
-    src/tor/crypto_ed25519.h \
-    src/tor/crypto_format.h \
-    src/tor/crypto_hash_sha512.h \
-    src/tor/crypto_int32.h \
-    src/tor/crypto_int64.h \
-    src/tor/crypto_pwbox.h \
-    src/tor/crypto_s2k.h \
-    src/tor/crypto_sign.h \
-    src/tor/crypto_uint32.h \
-    src/tor/crypto_uint64.h \
-    src/tor/crypto_verify_32.h \
-    src/tor/crypto.h \
-    src/tor/curve25519-donna-32bit.h \
-    src/tor/curve25519-donna-helpers.h \
-    src/tor/curve25519-donna-sse2.h \
-    src/tor/d.h \
-    src/tor/d2.h \
-    src/tor/di_ops.h \
-    src/tor/dircollate.h \
-    src/tor/directory.h \
-    src/tor/dirserv.h \
-    src/tor/dirvote.h \
-    src/tor/dns_structs.h \
-    src/tor/dns.h \
-    src/tor/dnsserv.h \
-    src/tor/ed25519_cert.h \
-    src/tor/ed25519_donna_tor.h \
-    src/tor/ed25519_ref10.h \
-    src/tor/ed25519-donna-32bit-sse2.h \
-    src/tor/ed25519-donna-32bit-tables.h \
-    src/tor/ed25519-donna-64bit-tables.h \
-    src/tor/ed25519-donna-64bit-x86-32bit.h \
-    src/tor/ed25519-donna-64bit-x86.h \
-    src/tor/ed25519-donna-basepoint-table.h \
-    src/tor/ed25519-donna-batchverify.h \
-    src/tor/ed25519-donna-impl-base.h \
-    src/tor/ed25519-donna-impl-sse2.h \
-    src/tor/ed25519-donna-portable-identify.h \
-    src/tor/ed25519-donna-portable.h \
-    src/tor/ed25519-donna.h \
-    src/tor/ed25519-hash.h \
-    src/tor/ed25519-randombytes.h \
-    src/tor/entrynodes.h \
-    src/tor/eventdns_tor.h \
-    src/tor/eventdns.h \
-    src/tor/ext_orport.h \
-    src/tor/fe.h \
-    src/tor/fp_pair.h \
-    src/tor/ge_add.h \
-    src/tor/ge_madd.h \
-    src/tor/ge_msub.h \
-    src/tor/ge_p2_dbl.h \
-    src/tor/ge_sub.h \
-    src/tor/ge.h \
-    src/tor/geoip.h \
-    src/tor/handles.h \
-    src/tor/hibernate.h \
-    src/tor/hs_cache.h \
-    src/tor/hs_circuitmap.h \
-    src/tor/hs_common.h \
-    src/tor/hs_descriptor.h \
-    src/tor/hs_intropoint.h \
-    src/tor/hs_service.h \
-    src/tor/ht.h \
-    src/tor/keccak-tiny.h \
-    src/tor/keypin.h \
-    src/tor/link_handshake.h \
-    src/tor/memarea.h \
-    src/tor/mempool.h \
-    src/tor/microdesc.h \
-    src/tor/modm-donna-32bit.h \
-    src/tor/modm-donna-64bit.h \
-    src/tor/networkstatus.h \
-    src/tor/nodelist.h \
-    src/tor/ntmain.h \
-    src/tor/onion_fast.h \
-    src/tor/onion_ntor.h \
-    src/tor/onion_tap.h \
-    src/tor/onion.h \
-    src/tor/or.h \
-    src/tor/orconfig_apple.h \
-    src/tor/orconfig_linux.h \
-    src/tor/orconfig_win32.h \
-    src/tor/orconfig_win64.h \
-    src/tor/orconfig.h \
-    src/tor/parsecommon.h \
-    src/tor/periodic.h \
-    src/tor/policies.h \
-    src/tor/pow22523.h \
-    src/tor/pow225521.h \
-    src/tor/procmon.h \
-    src/tor/protover.h \
-    src/tor/pubsub.h \
-    src/tor/pwbox.h \
-    src/tor/randombytes.h \
-    src/tor/reasons.h \
-    src/tor/relay.h \
-    src/tor/rendcache.h \
-    src/tor/rendclient.h \
-    src/tor/rendcommon.h \
-    src/tor/rendmid.h \
-    src/tor/rendservice.h \
-    src/tor/rephist.h \
-    src/tor/replaycache.h \
-    src/tor/router.h \
-    src/tor/routerkeys.h \
-    src/tor/routerlist.h \
-    src/tor/routerparse.h \
-    src/tor/routerset.h \
-    src/tor/sandbox.h \
-    src/tor/sc.h \
-    src/tor/scheduler.h \
-    src/tor/shared_random_state.h \
-    src/tor/shared_random.h \
-    src/tor/siphash.h \
-    src/tor/sqrtm1.h \
-    src/tor/statefile.h \
-    src/tor/status.h \
-    src/tor/testsupport.h \
-    src/tor/timers.h \
-    src/tor/tinytest_macros.h \
-    src/tor/tinytest.h \
-    src/tor/tor_queue.h \
-    src/tor/tor_readpassphrase.h \
-    src/tor/torcert.h \
-    src/tor/torcompat.h \
-    src/tor/torgzip.h \
-    src/tor/torint.h \
-    src/tor/torlog.h \
-    src/tor/tormain.h \
-    src/tor/tortls.h \
-    src/tor/torutil.h \
-    src/tor/transports.h \
-    src/tor/trunnel-impl.h \
-    src/tor/trunnel.h \
-    src/tor/util_bug.h \
-    src/tor/util_format.h \
-    src/tor/util_process.h \
-    src/tor/workqueue.h
+    src/xxhash/xxhash.h 
 
 SOURCES += src/qt/bitcoin.cpp \
     src/qt/bitcoingui.cpp \

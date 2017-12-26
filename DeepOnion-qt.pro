@@ -23,31 +23,20 @@ greaterThan(QT_MAJOR_VERSION, 4) {
 }
 
 win32 {
-    LIBS += -lshlwapi
-    LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
-    LIBS += -lssl -lcrypto -ldb_cxx$$BDB_LIB_SUFFIX -lcrypt32
-    LIBS += -lws2_32 -lole32 -loleaut32 -luuid -lgdi32
-    LIBS += -lboost_system-mgw49-mt-s-1_57 -lboost_filesystem-mgw49-mt-s-1_57 -lboost_program_options-mgw49-mt-s-1_57 -lboost_thread-mgw49-mt-s-1_57
-    LIBS += -L"E:/MinGW/msys/1.0/local/lib"
-    LIBS += -L"E:/libcommuni-3.2.0/lib"
-
-    INCLUDEPATH += "E:/MinGW/msys/1.0/local/include"
-
-BOOST_LIB_SUFFIX=-mgw49-mt-s-1_57
-BOOST_INCLUDE_PATH=E:/boost_1_57_0
-BOOST_LIB_PATH=E:/boost_1_57_0/stage/lib
-BDB_INCLUDE_PATH=E:/db-4.8.30.NC/build_unix
-BDB_LIB_PATH=E:/db-4.8.30.NC/build_unix
-OPENSSL_INCLUDE_PATH=E:/openssl-1.0.1l/include
-OPENSSL_LIB_PATH=E:/openssl-1.0.1l
-MINIUPNPC_INCLUDE_PATH=E:/
-MINIUPNPC_LIB_PATH=E:/miniupnpc
-LIBPNG_INCLUDE_PATH=E:/libpng-1.6.16
-LIBPNG_LIB_PATH=E:/libpng-1.6.16/.libs
-QRENCODE_INCLUDE_PATH=E:/qrencode-3.4.4
-QRENCODE_LIB_PATH=E:/qrencode-3.4.4/.libs
-LIBEVENT_INCLUDE_PATH=E:/libevent-2.0.22/include
-LIBEVENT_LIB_PATH=E:/libevent-2.0.22/.libs
+    BOOST_LIB_SUFFIX=-mgw49-mt-s-1_58
+	BOOST_INCLUDE_PATH=C:/development/dependencies/easywinbuilder/lib/boost_1_58_0
+	BOOST_LIB_PATH=C:/development/dependencies/easywinbuilder/lib/boost_1_58_0/stage/lib
+	BDB_INCLUDE_PATH=C:/development/dependencies/easywinbuilder/lib/db-4.8.30.NC/build_unix
+	BDB_LIB_PATH=C:/development/dependencies/easywinbuilder/lib/db-4.8.30.NC/build_unix
+	OPENSSL_INCLUDE_PATH=C:/development/dependencies/easywinbuilder/lib/openssl-1.0.1p/include
+	OPENSSL_LIB_PATH=C:/development/dependencies/easywinbuilder/lib/openssl-1.0.1p
+	MINIUPNPC_INCLUDE_PATH=C:/development/dependencies/easywinbuilder/lib/miniupnpc-1.9.20150206/miniupnpc
+	MINIUPNPC_LIB_PATH=C:/development/dependencies/easywinbuilder/lib/miniupnpc-1.9.20150206/miniupnpc
+	MINIUPNP_STATICLIB=C:/development/dependencies/easywinbuilder/lib/miniupnpc-1.9.20150206/miniupnpc
+	QRENCODE_INCLUDE_PATH=C:/deps/qrencode-3.4.4
+	QRENCODE_LIB_PATH=C:/deps/qrencode-3.4.4/.libs
+LIBEVENT_INCLUDE_PATH=C:/development/dependencies/easywinbuilder/lib/libevent-2.0.22-stable/include
+LIBEVENT_LIB_PATH=C:/development/dependencies/easywinbuilder/lib/libevent-2.0.22-stable/.libs
 }
 
 # for boost 1.37, add -mt to the boost libraries
